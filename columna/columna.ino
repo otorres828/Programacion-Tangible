@@ -1,9 +1,9 @@
 // ---------------------------------------------------------------------------------------
 // Código para Medidor de 4 Resistencias con Arduino Nano
-// Utiliza A0 para medir Vin y A2, A3, A4, A5 para medir Vout de cada divisor.
+// Utiliza A0 para medir Vin y A1, A2, A3, A6 para medir Vout de cada divisor.
 // Muestra los valores de las resistencias en el Monitor Serial.
+// Nota: Utilizamos A4 y A5 para la comunicacion IC2 con el arduino central.
 // ---------------------------------------------------------------------------------------
-
 
 #include <Wire.h> // Librería para comunicación I2C
 
@@ -96,20 +96,28 @@ float getAverageVoltage(int analogPinToMeasure) {
 
 //Obtiene el valor de la resustencia
 float getResistanceValue(float v2, float v1) {
+
   // Manejo de casos especiales para evitar divisiones por cero o resultados erróneos.
   if (v1 < 0.01) { // Si Vin es muy bajo, la fuente no está conectada o hay un error.
     return -1.0; // Código de error: Vin inválido
   }
-  if (v2 < 0.001) { // Si Vout es casi cero, Rx es extremadamente grande (circuito abierto).
-    return -999.0; // Código de error: Circuito Abierto
-  }
+
   if ((v1 - v2) < 0.001) { // Si (Vin - Vout) es casi cero, significa que Vout ~ Vin,
                            // lo que implica que Rx es muy pequeña o un cortocircuito.
     return -2.0; // Código de error: Corto Circuito / Valor Inválido
   }
 
+  if (v2 < 0.001) { // Si Vout es casi cero, Rx es extremadamente grande (circuito abierto).
+    return -999.0; // Código de error: Circuito Abierto
+  }
+
   // Fórmula para calcular Rx: Rx = R1 * (Vout / (Vin - Vout))
   float resistance = (v2 * RC) / (v1 - v2);
+
+  if(resistance > 60000.0) { // Si la resistencia calculada es mayor a 60kOhm, se considera un error.
+    return -3.0; // Código de error: Corto Circuito / Valor Inválido
+  }
+
   return resistance;
 }
 
@@ -127,14 +135,10 @@ void printResistance(float resistance, int rxNumber,int ledPin) {
     Serial.println("ABIERTO / Muy Alta");
   } else if (resistance == -1.0) {
     Serial.println("ERROR - Vin no detectado");
-  } else if (resistance == -2.0 || resistance < 0) { // Incluye negativos por ruido
+  } else if (resistance == -2.0 || resistance < -3.0 || resistance < 0) { // Incluye negativos por ruido
     Serial.println("CORTO / Valor Invalido");
   } else {
-    // Si la resistencia está dentro del rango "normal" (no es error, no es abierto, no es corto/inválido)
-    // y no es mayor al límite superior que definiste (130kOhm)
-    if (resistance >= 60000.0) { // Mayor a la maxima resistencia utilizada (40000 OMH)
-      Serial.println("CORTO / Valor Invalido");
-    } else {
+
       // Valor válido, encender el LED
       digitalWrite(ledPin, HIGH);
 
@@ -146,7 +150,7 @@ void printResistance(float resistance, int rxNumber,int ledPin) {
         Serial.print(resistance, 2);
         Serial.println(" Ohms");
       }
-    }
+    
   }
 }
 
@@ -156,7 +160,15 @@ void requestEvent() {
   // El Maestro espera 4 floats * 4 bytes/float = 16 bytes.
   for (int i = 0; i < 4; i++) {
     FloatBytes fb;
-    fb.f = measuredResistances[i];
+
+    //nos aseguramos que solo mandemos isntancias válidas
+    // Si la resistencia medida es válida (mayor que 0), enviamos su valor
+    if(measuredResistances[i]>0){
+      fb.f = measuredResistances[i];
+    }else{
+      // Si es -999.0, -1.0, -2.0 o -3.0,  Enviamos -1 como valor de error si la resistencia no es válida  
+      fb.f = -1; 
+    }
     Wire.write(fb.b, 4); // Envía los 4 bytes de cada float
   }
 }

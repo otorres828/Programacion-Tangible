@@ -2,6 +2,7 @@
 // Código para Arduino Nano Central (MAESTRO I2C)
 // Solicita datos de 4 Arduinos de columna (Esclavos I2C) y consolida los valores
 // de resistencia en un array de 16 posiciones.
+// Nota: Utilizamos A4 y A5 para la comunicacion IC2 con cada columna .
 // ---------------------------------------------------------------------------------------
 
 #include <Wire.h> // Librería para comunicación I2C
@@ -11,7 +12,7 @@
 
 // Direcciones I2C de los Arduinos de las columnas
 const int COLUMN_ADDRESSES[] = {0x01, 0x02, 0x03, 0x04};
-const int NUM_COLUMNS = 1;
+const int NUM_COLUMNS = 4;
 const int RESISTANCES_PER_COLUMN = 4;
 const int TOTAL_RESISTANCES = NUM_COLUMNS * RESISTANCES_PER_COLUMN; // 4 columnas * 4 resistencias = 16
 
@@ -64,17 +65,8 @@ void loop() {
       Serial.print(i + 1);
       Serial.print(": ");
       // Formatear la salida para mayor legibilidad (Ohms, kOhms, MOhms)
-      if (allResistances[i] == -999.0) {
-        Serial.println("ABIERTO / Muy Alta");
-      } else if (allResistances[i] == -1.0) {
-        Serial.println("ERROR - Vin no detectado");
-      } else if (allResistances[i] == -2.0 || allResistances[i] < 0) {
+      if (allResistances[i] < 0) {
         Serial.println("CORTO / Valor Invalido");
-      } else if (allResistances[i] >= 130000.0) {
-        Serial.println("VALOR EXCEDIDO");
-      } else if (allResistances[i] >= 1000000.0) {
-        Serial.print(allResistances[i] / 1000000.0, 2);
-        Serial.println(" MOhms");
       } else if (allResistances[i] >= 1000.0) {
         Serial.print(allResistances[i] / 1000.0, 2);
         Serial.println(" kOhms");
@@ -97,7 +89,6 @@ void loop() {
   }
 }
 
-// --- FUNCIONES AUXILIARES ---
 
 // Lee las 4 columnas via I2C y llena el array 'allResistances'
 void leerTodasColumnas() {
@@ -135,17 +126,19 @@ void leerTodasColumnas() {
   }
 }
 
+//ejecuta una instruccion determinada
+void ejecutarInstruccion(resistenciaActual){
+
+}
+
 // Ejecuta las instrucciones del array 'allResistances'
 // Esta función es donde implementarás la lógica principal de tu tesis
 // basada en los valores de resistencia leídos.
 void ejecutarSecuencia() {
-  Serial.println("Iniciando secuencia de tesis...");
 
-  // Aquí puedes recorrer el array 'allResistances' que ahora contiene los 16 valores
-  // y aplicar la lógica de control que necesites para tu proyecto.
-  // Por ejemplo, puedes usar rangos de resistencia para determinar acciones.
+  Serial.println("Iniciando ejecucion de instrucciones...");
 
-  for (int i = 0; i < TOTAL_RESISTANCES; i++) { // Recorre las 16 resistencias
+  for (int i = 0; i < TOTAL_RESISTANCES; i++) { // Recorre las primeras 3 columnas (12 resistencias si las hubiese)
     float resistenciaActual = allResistances[i];
 
     Serial.print("Procesando Resistencia ");
@@ -156,10 +149,9 @@ void ejecutarSecuencia() {
     Serial.print((i % RESISTANCES_PER_COLUMN) + 1); // Calcula el Rx dentro de la columna
     Serial.print("): ");
 
+
     // Imprime el valor de la resistencia actual
-    if (resistenciaActual >= 60000.0) {
-      Serial.println(" Valor No Encontrado");
-    } else if (resistenciaActual >= 1000.0) {
+   if (resistenciaActual >= 1000.0) {
       Serial.print(resistenciaActual / 1000.0, 2);
       Serial.println(" kOhms");
     } else {
@@ -167,49 +159,9 @@ void ejecutarSecuencia() {
       Serial.println(" Ohms");
     }
 
-    // --- Lógica de control basada en el valor de la resistencia ---
-    // if (resistenciaActual > 0 && resistenciaActual < 1000) {
-    //   // servoX.write(90); // Comentado: Ejemplo de acción con servo
-    //   Serial.println("  -> Acción: Resistencia Baja (ej. Mover a Posicion 1)");
-    // } else if (resistenciaActual >= 1000 && resistenciaActual < 10000) {
-    //   // servoY.write(45); // Comentado: Ejemplo de acción con servo
-    //   Serial.println("  -> Acción: Resistencia Media (ej. Mover a Posicion 2)");
-    // } else if (resistenciaActual >= 10000 && resistenciaActual < 100000) {
-    //   // servoX.write(0); // Comentado: Ejemplo de acción con servo
-    //   Serial.println("  -> Acción: Resistencia Alta (ej. Mover a Posicion 3)");
-    // } else if (resistenciaActual == -999.0) {
-    //   Serial.println("  -> Acción: Circuito Abierto / No Conectada (ej. Alerta)");
-    // } else if (resistenciaActual == -1.0) {
-    //   Serial.println("  -> Acción: ERROR en lectura de Vin (ej. Reiniciar)");
-    // } else if (resistenciaActual == -2.0 || resistenciaActual < 0) {
-    //   Serial.println("  -> Acción: Corto Circuito / Valor Invalido (ej. Detener)");
-    // } else if (resistenciaActual == -9999.0) {
-    //   Serial.println("  -> Acción: ERROR DE COMUNICACION I2C (ej. Reintentar)");
-    // } else {
-    //   Serial.println("  -> Acción: Otro valor / Fuera de rango definido");
-    // }
+    ejecutarInstruccion(resistenciaActual, i); 
 
     delay(500); // Pequeña pausa entre el procesamiento de cada resistencia
   }
-}
 
-// La función 'ejecutarInstruccionControl' de tu ejemplo original
-// se ha integrado o se puede adaptar aquí si tienes un "bloque de control"
-// específico que también se base en valores de resistencia.
-// Si tu 'bloqueControl' se refiere a un array de valores de resistencia
-// que también se leen, deberías adaptar esta función para procesar esos floats.
-// Por ahora, la dejo comentada como un placeholder.
-/*
-void ejecutarInstruccionControl(float instruccionResistencia) {
-  // Aquí iría la lógica de control basada en los valores de resistencia del bloque de control
-  // Por ejemplo:
-  if (instruccionResistencia > 5000) {
-    // servoY.write(90);
-    Serial.println("(Control) Resistencia > 5k");
-  } else {
-    // servoY.write(0);
-    Serial.println("(Control) Resistencia <= 5k");
-  }
-  delay(300);
 }
-*/
