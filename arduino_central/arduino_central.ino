@@ -16,13 +16,14 @@ const int NUM_COLUMNS = 4;
 const int RESISTANCES_PER_COLUMN = 4;
 const int TOTAL_RESISTANCES = NUM_COLUMNS * RESISTANCES_PER_COLUMN; // 4 columnas * 4 resistencias = 16
 
-// Array para almacenar todas las resistencias leídas (16 posiciones)
-float allResistances[TOTAL_RESISTANCES];
+float allResistances[TOTAL_RESISTANCES]; // Array para almacenar todas las resistencias leídas (16 posiciones)
+float instruccionesColumnas[12];         // Array para almacenar las instrucciones de 3 columnas (12 posiciones)
+float bloqueControl[4];                  // Array para almacenar el bloque de control (4 posiciones)
 
-// Variables de control de secuencia (tomadas de tu ejemplo)
+// Variables de control de secuencia 
 bool secuenciaLista = false;
 
-// Servo servoX, servoY; // Comentado, se pidió no usar servos por ahora.
+// Servo servoX, servoY; 
 
 // --- UNIÓN PARA CONVERTIR FLOAT A BYTES Y VICEVERSA ---
 // Esto es necesario porque Wire.write() y Wire.read() operan con bytes.
@@ -57,6 +58,7 @@ void loop() {
   // si 'secuenciaLista' es falsa.
   if (!secuenciaLista) {
     leerTodasColumnas(); // Llama a la función para solicitar datos a los esclavos
+    copiarArrays(); // Copia los valores leídos a los arrays de instrucciones y bloque de control
     Serial.println("Instrucciones cargadas. Esperando botón...");
     // Imprimir todos los valores leídos para verificación en el Monitor Serial
     Serial.println("Valores de todas las resistencias leídas:");
@@ -88,7 +90,6 @@ void loop() {
     Serial.println("Secuencia completada.");
   }
 }
-
 
 // Lee las 4 columnas via I2C y llena el array 'allResistances'
 void leerTodasColumnas() {
@@ -126,20 +127,31 @@ void leerTodasColumnas() {
   }
 }
 
-//ejecuta una instruccion determinada
-void ejecutarInstruccion(resistenciaActual){
-
+// Copiar los valores después de leer todas las columnas
+void copiarArrays() {
+  // Copia las primeras 12 posiciones
+  for (int i = 0; i < 12; i++) {
+    instruccionesColumnas[i] = allResistances[i];
+  }
+  // Copia las últimas 4 posiciones
+  for (int i = 0; i < 4; i++) {
+    bloqueControl[i] = allResistances[12 + i];
+  }
 }
 
-// Ejecuta las instrucciones del array 'allResistances'
-// Esta función es donde implementarás la lógica principal de tu tesis
-// basada en los valores de resistencia leídos.
+//ejecuta una instruccion determinada
+void ejecutarInstruccion(float resistenciaActual){
+    Serial.println(resistenciaActual);
+}
+
+
+// Ejecuta las instrucciones del array 'instruccionesColumnas'
 void ejecutarSecuencia() {
 
   Serial.println("Iniciando ejecucion de instrucciones...");
 
-  for (int i = 0; i < TOTAL_RESISTANCES; i++) { // Recorre las primeras 3 columnas (12 resistencias si las hubiese)
-    float resistenciaActual = allResistances[i];
+  for (int i = 0; i < 12; i++) { // Recorre las primeras 3 columnas (12 resistencias si las hubiese)
+    float resistenciaActual = instruccionesColumnas[i];
 
     Serial.print("Procesando Resistencia ");
     Serial.print(i + 1); // Número de resistencia (1 a 16)
@@ -151,7 +163,7 @@ void ejecutarSecuencia() {
 
 
     // Imprime el valor de la resistencia actual
-   if (resistenciaActual >= 1000.0) {
+    if (resistenciaActual >= 1000.0) {
       Serial.print(resistenciaActual / 1000.0, 2);
       Serial.println(" kOhms");
     } else {
@@ -159,7 +171,10 @@ void ejecutarSecuencia() {
       Serial.println(" Ohms");
     }
 
-    ejecutarInstruccion(resistenciaActual, i); 
+    //ejecutamos cada instruccion solo si es valida
+    if(resistenciaActual>0){
+      ejecutarInstruccion(resistenciaActual); 
+    }
 
     delay(500); // Pequeña pausa entre el procesamiento de cada resistencia
   }
