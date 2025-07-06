@@ -1,0 +1,215 @@
+// ---------------------------------------------------------------------------------------
+// Código para Arduino Nano Central (MAESTRO I2C)
+// Solicita datos de 4 Arduinos de columna (Esclavos I2C) y consolida los valores
+// de resistencia en un array de 16 posiciones.
+// ---------------------------------------------------------------------------------------
+
+#include <Wire.h> // Librería para comunicación I2C
+// #include <Servo.h> // Comentado, ya que se pidió no usar servos por ahora.
+
+#define BOTON_INICIO 2 // Pin del botón (con resistencia pull-up)
+
+// Direcciones I2C de los Arduinos de las columnas
+const int COLUMN_ADDRESSES[] = {0x01, 0x02, 0x03, 0x04};
+const int NUM_COLUMNS = 1;
+const int RESISTANCES_PER_COLUMN = 4;
+const int TOTAL_RESISTANCES = NUM_COLUMNS * RESISTANCES_PER_COLUMN; // 4 columnas * 4 resistencias = 16
+
+// Array para almacenar todas las resistencias leídas (16 posiciones)
+float allResistances[TOTAL_RESISTANCES];
+
+// Variables de control de secuencia (tomadas de tu ejemplo)
+bool secuenciaLista = false;
+
+// Servo servoX, servoY; // Comentado, se pidió no usar servos por ahora.
+
+// --- UNIÓN PARA CONVERTIR FLOAT A BYTES Y VICEVERSA ---
+// Esto es necesario porque Wire.write() y Wire.read() operan con bytes.
+// Un float (4 bytes) se descompone en 4 bytes individuales para la transmisión I2C.
+union FloatBytes {
+  float f;    // El valor flotante
+  byte b[4];  // Sus 4 bytes constituyentes
+};
+
+// --- FUNCIÓN setup() ---
+// Se ejecuta una sola vez al encender o reiniciar el Arduino.
+void setup() {
+  Wire.begin(); // Inicia la comunicación I2C como Maestro
+  Serial.begin(4800); // Para comunicación con el Monitor Serial del PC
+
+  pinMode(BOTON_INICIO, INPUT_PULLUP); // Configura el pin del botón con resistencia pull-up interna
+
+  // servoX.attach(9); // Comentado: Adjunta el servo al pin 9
+  // servoY.attach(10); // Comentado: Adjunta el servo al pin 10
+
+  Serial.println("----------------------------------");
+  Serial.println("   Arduino Central (Maestro I2C)  ");
+  Serial.println("----------------------------------");
+  Serial.println("Iniciando. Esperando lecturas de columnas...");
+}
+
+// --- FUNCIÓN loop() ---
+// Se ejecuta repetidamente después de setup().
+void loop() {
+  // 1. Leer todas las columnas y guardar en el array
+  // Esta sección se ejecuta solo una vez al inicio o hasta que se presione el botón
+  // si 'secuenciaLista' es falsa.
+  if (!secuenciaLista) {
+    leerTodasColumnas(); // Llama a la función para solicitar datos a los esclavos
+    Serial.println("Instrucciones cargadas. Esperando botón...");
+    // Imprimir todos los valores leídos para verificación en el Monitor Serial
+    Serial.println("Valores de todas las resistencias leídas:");
+    for (int i = 0; i < TOTAL_RESISTANCES; i++) {
+      Serial.print("Resistencia ");
+      Serial.print(i + 1);
+      Serial.print(": ");
+      // Formatear la salida para mayor legibilidad (Ohms, kOhms, MOhms)
+      if (allResistances[i] == -999.0) {
+        Serial.println("ABIERTO / Muy Alta");
+      } else if (allResistances[i] == -1.0) {
+        Serial.println("ERROR - Vin no detectado");
+      } else if (allResistances[i] == -2.0 || allResistances[i] < 0) {
+        Serial.println("CORTO / Valor Invalido");
+      } else if (allResistances[i] >= 130000.0) {
+        Serial.println("VALOR EXCEDIDO");
+      } else if (allResistances[i] >= 1000000.0) {
+        Serial.print(allResistances[i] / 1000000.0, 2);
+        Serial.println(" MOhms");
+      } else if (allResistances[i] >= 1000.0) {
+        Serial.print(allResistances[i] / 1000.0, 2);
+        Serial.println(" kOhms");
+      } else {
+        Serial.print(allResistances[i], 2);
+        Serial.println(" Ohms");
+      }
+    }
+    Serial.println("----------------------------------");
+    delay(1000); // Pequeña pausa para que no se sature el serial
+  }
+
+  // 2. Si se presiona el botón, ejecutar secuencia
+  // digitalRead(BOTON_INICIO) == LOW porque se usa INPUT_PULLUP (botón a GND)
+  if (/*digitalRead(BOTON_INICIO) == LOW &&*/ !secuenciaLista) {
+    secuenciaLista = true; // Marca que la secuencia está lista para ejecutarse
+    ejecutarSecuencia();   // Llama a la función que contiene la lógica de tu tesis
+    secuenciaLista = false; // Permite reiniciar la secuencia después de completarla
+    Serial.println("Secuencia completada.");
+  }
+}
+
+// --- FUNCIONES AUXILIARES ---
+
+// Lee las 4 columnas via I2C y llena el array 'allResistances'
+void leerTodasColumnas() {
+  Serial.println("Solicitando datos a las columnas I2C...");
+  for (int col = 0; col < NUM_COLUMNS; col++) {
+    int slaveAddress = COLUMN_ADDRESSES[col];
+    // Cada float ocupa 4 bytes. Queremos 4 floats por columna, así que 16 bytes.
+    int bytesToRequest = RESISTANCES_PER_COLUMN * sizeof(float); // 4 floats * 4 bytes/float = 16 bytes
+
+    // Solicita los bytes de datos al esclavo
+    Wire.requestFrom(slaveAddress, bytesToRequest);
+
+    // Lee los bytes recibidos y los convierte de nuevo a floats
+    FloatBytes fb; // Objeto union para la conversión de bytes a float
+    for (int i = 0; i < RESISTANCES_PER_COLUMN; i++) {
+      // Índice en el array principal (allResistances)
+      int globalIndex = col * RESISTANCES_PER_COLUMN + i;
+
+      if (Wire.available() >= sizeof(float)) { 
+        for (int j = 0; j < sizeof(float); j++) {
+          fb.b[j] = Wire.read(); // Lee los 4 bytes que componen el float
+        }
+        // Almacena el float reconstruido en el array principal
+        allResistances[globalIndex] = fb.f;
+      } else {
+        // Manejo de error si no se recibieron suficientes bytes para un float completo
+        Serial.print("ERROR: No se recibieron suficientes bytes de 0x");
+        Serial.print(slaveAddress, HEX);
+        Serial.print(" para la resistencia ");
+        Serial.println(i + 1);
+        allResistances[globalIndex] = -9999.0; // Valor de error para indicar fallo en la lectura I2C
+      }
+    }
+    delay(50); // Pequeña pausa entre solicitudes a diferentes esclavos para evitar saturación
+  }
+}
+
+// Ejecuta las instrucciones del array 'allResistances'
+// Esta función es donde implementarás la lógica principal de tu tesis
+// basada en los valores de resistencia leídos.
+void ejecutarSecuencia() {
+  Serial.println("Iniciando secuencia de tesis...");
+
+  // Aquí puedes recorrer el array 'allResistances' que ahora contiene los 16 valores
+  // y aplicar la lógica de control que necesites para tu proyecto.
+  // Por ejemplo, puedes usar rangos de resistencia para determinar acciones.
+
+  for (int i = 0; i < TOTAL_RESISTANCES; i++) { // Recorre las 16 resistencias
+    float resistenciaActual = allResistances[i];
+
+    Serial.print("Procesando Resistencia ");
+    Serial.print(i + 1); // Número de resistencia (1 a 16)
+    Serial.print(" (Columna ");
+    Serial.print((i / RESISTANCES_PER_COLUMN) + 1); // Calcula la columna
+    Serial.print(", Rx ");
+    Serial.print((i % RESISTANCES_PER_COLUMN) + 1); // Calcula el Rx dentro de la columna
+    Serial.print("): ");
+
+    // Imprime el valor de la resistencia actual
+    if (resistenciaActual >= 60000.0) {
+      Serial.println(" Valor No Encontrado");
+    } else if (resistenciaActual >= 1000.0) {
+      Serial.print(resistenciaActual / 1000.0, 2);
+      Serial.println(" kOhms");
+    } else {
+      Serial.print(resistenciaActual, 2);
+      Serial.println(" Ohms");
+    }
+
+    // --- Lógica de control basada en el valor de la resistencia ---
+    // if (resistenciaActual > 0 && resistenciaActual < 1000) {
+    //   // servoX.write(90); // Comentado: Ejemplo de acción con servo
+    //   Serial.println("  -> Acción: Resistencia Baja (ej. Mover a Posicion 1)");
+    // } else if (resistenciaActual >= 1000 && resistenciaActual < 10000) {
+    //   // servoY.write(45); // Comentado: Ejemplo de acción con servo
+    //   Serial.println("  -> Acción: Resistencia Media (ej. Mover a Posicion 2)");
+    // } else if (resistenciaActual >= 10000 && resistenciaActual < 100000) {
+    //   // servoX.write(0); // Comentado: Ejemplo de acción con servo
+    //   Serial.println("  -> Acción: Resistencia Alta (ej. Mover a Posicion 3)");
+    // } else if (resistenciaActual == -999.0) {
+    //   Serial.println("  -> Acción: Circuito Abierto / No Conectada (ej. Alerta)");
+    // } else if (resistenciaActual == -1.0) {
+    //   Serial.println("  -> Acción: ERROR en lectura de Vin (ej. Reiniciar)");
+    // } else if (resistenciaActual == -2.0 || resistenciaActual < 0) {
+    //   Serial.println("  -> Acción: Corto Circuito / Valor Invalido (ej. Detener)");
+    // } else if (resistenciaActual == -9999.0) {
+    //   Serial.println("  -> Acción: ERROR DE COMUNICACION I2C (ej. Reintentar)");
+    // } else {
+    //   Serial.println("  -> Acción: Otro valor / Fuera de rango definido");
+    // }
+
+    delay(500); // Pequeña pausa entre el procesamiento de cada resistencia
+  }
+}
+
+// La función 'ejecutarInstruccionControl' de tu ejemplo original
+// se ha integrado o se puede adaptar aquí si tienes un "bloque de control"
+// específico que también se base en valores de resistencia.
+// Si tu 'bloqueControl' se refiere a un array de valores de resistencia
+// que también se leen, deberías adaptar esta función para procesar esos floats.
+// Por ahora, la dejo comentada como un placeholder.
+/*
+void ejecutarInstruccionControl(float instruccionResistencia) {
+  // Aquí iría la lógica de control basada en los valores de resistencia del bloque de control
+  // Por ejemplo:
+  if (instruccionResistencia > 5000) {
+    // servoY.write(90);
+    Serial.println("(Control) Resistencia > 5k");
+  } else {
+    // servoY.write(0);
+    Serial.println("(Control) Resistencia <= 5k");
+  }
+  delay(300);
+}
+*/
