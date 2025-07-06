@@ -139,28 +139,36 @@ void copiarArrays() {
   }
 }
 
-//ejecuta una instruccion determinada
-void ejecutarInstruccion(float resistenciaActual){
-    Serial.println(resistenciaActual);
-}
-
-
 // Ejecuta las instrucciones del array 'instruccionesColumnas'
 void ejecutarSecuencia() {
 
   Serial.println("Iniciando ejecucion de instrucciones...");
 
-  for (int i = 0; i < 12; i++) { // Recorre las primeras 3 columnas (12 resistencias si las hubiese)
+  // Recorre las primeras 3 columnas (12 resistencias si las hubiese)
+  for (int i = 0; i < 12; i++) { 
+
     float resistenciaActual = instruccionesColumnas[i];
 
+    //ejecutamos cada instruccion solo si es valida
+    if(resistenciaActual>0){
+      ejecutarInstruccion(resistenciaActual,i); 
+    }
+
+  }
+
+}
+
+
+//ejecuta una instruccion determinada
+void ejecutarInstruccion(float resistenciaActual,int i){
+
     Serial.print("Procesando Resistencia ");
-    Serial.print(i + 1); // Número de resistencia (1 a 16)
+    Serial.print(i + 1); // Número de resistencia (1 a 12 - 3 columnas)
     Serial.print(" (Columna ");
     Serial.print((i / RESISTANCES_PER_COLUMN) + 1); // Calcula la columna
     Serial.print(", Rx ");
     Serial.print((i % RESISTANCES_PER_COLUMN) + 1); // Calcula el Rx dentro de la columna
     Serial.print("): ");
-
 
     // Imprime el valor de la resistencia actual
     if (resistenciaActual >= 1000.0) {
@@ -171,12 +179,7 @@ void ejecutarSecuencia() {
       Serial.println(" Ohms");
     }
 
-    //ejecutamos cada instruccion solo si es valida
-    if(resistenciaActual>0){
-      ejecutarInstruccion(resistenciaActual); 
-    }
 
     delay(500); // Pequeña pausa entre el procesamiento de cada resistencia
-  }
 
 }
