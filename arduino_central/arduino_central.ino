@@ -33,7 +33,7 @@ float allResistances[TOTAL_RESISTANCES];         // Almacena todas las 16 resist
 float instruccionesColumnas[12];                 // Almacena las instrucciones de las primeras 3 columnas (12 posiciones)
 float bloqueControl[4];                          // Almacena el bloque de control (última columna, 4 posiciones)
 
-// --- DEFINICIONES DE ACCIONES (ENUM para mayor claridad) ---
+// --- DEFINICIONES DE ACCIONES ---
 // Estos valores representan el tipo de acción que se realizará.
 enum ActionType {
   ACTION_NONE = 0,            // Sin acción / Valor fuera de rango
