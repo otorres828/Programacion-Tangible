@@ -12,33 +12,11 @@
 
 #define BOTON_INICIO 2 // Pin del botón (con resistencia pull-up)
 
-// Definición de los pines para los motores paso a paso
-// Asignación de pines para 3 motores paso a paso (CoreXY X, CoreXY Y, Eje Z)
-// Ajusta estos pines según tus conexiones físicas.
-// Si tu motor usa 2 pines (paso/dirección) o 4 pines (bobinas), ajusta la definición de Stepper.
-// Aquí asumimos 4 pines por motor.
-#define MOTOR_X_PIN1 8
-#define MOTOR_X_PIN2 9
-#define MOTOR_X_PIN3 10
-#define MOTOR_X_PIN4 11
-
-#define MOTOR_Y_PIN1 6  // Pines digitales disponibles: D6, D7, D12, D13
-#define MOTOR_Y_PIN2 7
-#define MOTOR_Y_PIN3 12
-#define MOTOR_Y_PIN4 13
-
-#define MOTOR_Z_PIN1 A0 // Pines analógicos como digitales: A0, A1, A2, A3
-#define MOTOR_Z_PIN2 A1
-#define MOTOR_Z_PIN3 A2
-#define MOTOR_Z_PIN4 A3
-
 // Objetos de los motores paso a paso. Se inicializan aquí globalmente.
 // Los 2048 pasos por revolución es un ejemplo (para un 28BYJ-48 con driver ULN2003).
-// Ajusta este valor según tu motor.
-Stepper motorX(2048, MOTOR_X_PIN1, MOTOR_X_PIN2, MOTOR_X_PIN3, MOTOR_X_PIN4);
-Stepper motorY(2048, MOTOR_Y_PIN1, MOTOR_Y_PIN2, MOTOR_Y_PIN3, MOTOR_Y_PIN4);
-Stepper motorZ(2048, MOTOR_Z_PIN1, MOTOR_Z_PIN2, MOTOR_Z_PIN3, MOTOR_Z_PIN4);
-
+Stepper motorX(2048, 8, 9, 10, 11);
+Stepper motorY(2048, 6, 7, 12, 13);
+Stepper motorZ(2048, A0, A1, A2, A3); //Pines analógicos como digitales: A0, A1, A2, A3
 
 // Direcciones I2C de los Arduinos de las columnas
 const int COLUMN_ADDRESSES[] = {0x01, 0x02, 0x03, 0x04};
@@ -80,13 +58,13 @@ enum RobotOrientation {
   SOUTH, // Orientación Sur (hacia -Y)
   WEST   // Orientación Oeste (hacia -X)
 };
+
 RobotOrientation robotOrientation = NORTH; // Orientación inicial del robot
 
 // --- DIMENSIONES DEL TABLERO ---
 const int GRID_SIZE = 6; // Cuadrícula de 6x6
 
-// --- DECLARACIÓN DE FUNCIONES (PROTOTIPOS) ---
-// Se declaran aquí porque las funciones se llaman entre sí antes de ser definidas.
+// --- DECLARACIÓN DE FUNCIONES---
 void leerTodasColumnas();
 void copiarArrays();
 void ejecutarSecuencia();
@@ -99,12 +77,9 @@ void executeBlockControlLogicInternal();
 bool isValidPosition(int x, int y);
 void printRobotState();
 void moveXY_steps(int deltaX_steps, int deltaY_steps); // Para movimiento CoreXY
-void moveZ_steps(int deltaZ_steps); // Para movimiento del eje Z
 void rotateRobot(int direction); // Para rotación (ej. del cabezal o del robot si es omnidireccional)
-
-// Funciones de acción (placeholders, implementar según tu tesis)
 void playMelody1();
-void playMelody2();
+
 
 void setup() {
   Wire.begin(); // Inicia la comunicación I2C como Maestro
@@ -125,8 +100,6 @@ void setup() {
   printRobotState(); // Imprime el estado inicial del robot
 }
 
-// --- FUNCIÓN loop() ---
-// Se ejecuta repetidamente después de setup().
 void loop() {
   // 1. Leer todas las columnas y guardar en el array
   // Esta sección se ejecuta solo una vez al inicio o hasta que se presione el botón
@@ -170,8 +143,6 @@ void loop() {
     Serial.println("Secuencia completada.");
   }
 }
-
-// --- DEFINICIÓN DE FUNCIONES ---
 
 // Lee las 4 columnas via I2C y llena el array 'allResistances'
 void leerTodasColumnas() {
@@ -470,27 +441,9 @@ void printRobotState() {
 void moveXY_steps(int deltaX_steps, int deltaY_steps) {
   Serial.print("    (CoreXY) Moviendo en X: "); Serial.print(deltaX_steps);
   Serial.print(", Y: "); Serial.print(deltaY_steps); Serial.println(" pasos.");
-  // --- IMPLEMENTACIÓN DE LA CINEMÁTICA COREXY ---
-  // Para un sistema CoreXY, un movimiento en X o Y requiere que AMBOS motores (motorX y motorY)
-  // se muevan una cantidad específica de pasos, a menudo combinando sus movimientos.
-  // Ejemplo conceptual (NO ES LA IMPLEMENTACIÓN COMPLETA DE COREXY):
-  // int motor1_actual_steps = deltaX_steps + deltaY_steps;
-  // int motor2_actual_steps = deltaX_steps - deltaY_steps;
-  // motorX.step(motor1_actual_steps);
-  // motorY.step(motor2_actual_steps);
-  // Por ahora, solo para simulación, movemos un motor si el delta es significativo.
-  // ELIMINA ESTAS LÍNEAS Y REEMPLAZALAS CON TU LÓGICA COREXY REAL.
+ 
   if (deltaX_steps != 0) motorX.step(deltaX_steps);
   if (deltaY_steps != 0) motorY.step(deltaY_steps);
-  // ---------------------------------------------
-}
-
-// Mueve el motor del eje Z.
-void moveZ_steps(int deltaZ_steps) {
-  Serial.print("    Moviendo eje Z: ");
-  Serial.print(deltaZ_steps);
-  Serial.println(" pasos.");
-  motorZ.step(deltaZ_steps); // Mueve el motor del eje Z el número de pasos especificado
 }
 
 // Placeholder para la rotación del robot.
@@ -500,16 +453,9 @@ void rotateRobot(int direction) {
   Serial.print("    Rotando robot ");
   if (direction == 1) Serial.println("a la DERECHA.");
   else Serial.println("a la IZQUIERDA.");
-  // --- IMPLEMENTACIÓN DE LA ROTACIÓN FÍSICA DEL ROBOT ---
-  // Esto dependerá de cómo tu robot CoreXY maneje la rotación.
-  // Podría ser un movimiento combinado de motorX y motorY si el cabezal rota,
-  // o si el robot tiene un mecanismo de giro independiente.
-  // Por ahora, solo una impresión.
-  // -----------------------------------------------------
 }
 
 // --- FUNCIONES DE ACCIÓN (PLACEHOLDERS) ---
-// DEBES IMPLEMENTAR LA LÓGICA REAL PARA CADA UNA DE ESTAS FUNCIONES EN TU TESIS.
 
 void playMelody1() {
   Serial.println("    (Placeholder) Reproduciendo Melodia 1...");
