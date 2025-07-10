@@ -2,13 +2,14 @@
 // Código para Arduino Nano Central (MAESTRO I2C)
 // Solicita datos de 4 Arduinos de columna (Esclavos I2C) y consolida los valores
 // de resistencia en un array de 16 posiciones.
-// Nota: Utilizamos A4 y A5 para la comunicacion IC2 con cada columna .
+// Nota: Utilizamos A4 y A5 para la comunicacion IC2 con cada columna.
 // ---------------------------------------------------------------------------------------
 
-#include <Wire.h> // Librería para comunicación I2C
-// #include <Servo.h> // Comentado, ya que se pidió no usar servos por ahora.
+#include <Wire.h>      // Librería para comunicación I2C
+#include <Stepper.h>  // Libreria para motor paso paso
 
 #define BOTON_INICIO 2 // Pin del botón (con resistencia pull-up)
+Stepper motor(2048, 8, 9, 10, 11); //definicion de motor 1
 
 // Direcciones I2C de los Arduinos de las columnas
 const int COLUMN_ADDRESSES[] = {0x01, 0x02, 0x03, 0x04};
@@ -20,10 +21,17 @@ float allResistances[TOTAL_RESISTANCES]; // Array para almacenar todas las resis
 float instruccionesColumnas[12];         // Array para almacenar las instrucciones de 3 columnas (12 posiciones)
 float bloqueControl[4];                  // Array para almacenar el bloque de control (4 posiciones)
 
+const int AVANZADA_1      = 1;
+const int RETROCESO       = 2;
+const int GIRAR_IZQUIERDA = 3;
+const int GIRAR_DERECHA   = 4
+const int BLOQUE_CONTROL  = 5;
+const int NEGACION        = 6;
+const int MELODIA_1       = 7;
+const int MELODIA_2       = 8;
+
 // Variables de control de secuencia 
 bool secuenciaLista = false;
-
-// Servo servoX, servoY; 
 
 // --- UNIÓN PARA CONVERTIR FLOAT A BYTES Y VICEVERSA ---
 // Esto es necesario porque Wire.write() y Wire.read() operan con bytes.
@@ -33,16 +41,12 @@ union FloatBytes {
   byte b[4];  // Sus 4 bytes constituyentes
 };
 
-// --- FUNCIÓN setup() ---
-// Se ejecuta una sola vez al encender o reiniciar el Arduino.
 void setup() {
+
   Wire.begin(); // Inicia la comunicación I2C como Maestro
   Serial.begin(4800); // Para comunicación con el Monitor Serial del PC
 
   pinMode(BOTON_INICIO, INPUT_PULLUP); // Configura el pin del botón con resistencia pull-up interna
-
-  // servoX.attach(9); // Comentado: Adjunta el servo al pin 9
-  // servoY.attach(10); // Comentado: Adjunta el servo al pin 10
 
   Serial.println("----------------------------------");
   Serial.println("   Arduino Central (Maestro I2C)  ");
@@ -50,21 +54,22 @@ void setup() {
   Serial.println("Iniciando. Esperando lecturas de columnas...");
 }
 
-// --- FUNCIÓN loop() ---
-// Se ejecuta repetidamente después de setup().
 void loop() {
-  // 1. Leer todas las columnas y guardar en el array
-  // Esta sección se ejecuta solo una vez al inicio o hasta que se presione el botón
-  // si 'secuenciaLista' es falsa.
+
+  // Esta sección se ejecuta solo una vez al inicio o hasta que se presione el botón de inicio
   if (!secuenciaLista) {
-    leerTodasColumnas(); // Llama a la función para solicitar datos a los esclavos
-    copiarArrays(); // Copia los valores leídos a los arrays de instrucciones y bloque de control
+    _leerTodasColumnas(); // Llama a la función para solicitar datos a los esclavos
+    _copiarArrays(); // Copia los valores leídos a los arrays de instrucciones y bloque de control
     Serial.println("Instrucciones cargadas. Esperando botón...");
     // Imprimir todos los valores leídos para verificación en el Monitor Serial
     Serial.println("Valores de todas las resistencias leídas:");
     for (int i = 0; i < TOTAL_RESISTANCES; i++) {
-      Serial.print("Resistencia ");
-      Serial.print(i + 1);
+      Serial.print(" (Columna ");
+      Serial.print((i / RESISTANCES_PER_COLUMN) + 1); // Calcula la columna
+      Serial.print(", Rx ");
+      Serial.print((i % RESISTANCES_PER_COLUMN) + 1); // Calcula el Rx dentro de la columna
+      Serial.print("): ");
+
       Serial.print(": ");
       // Formatear la salida para mayor legibilidad (Ohms, kOhms, MOhms)
       if (allResistances[i] < 0) {
@@ -81,18 +86,16 @@ void loop() {
     delay(1000); // Pequeña pausa para que no se sature el serial
   }
 
-  // 2. Si se presiona el botón, ejecutar secuencia
-  // digitalRead(BOTON_INICIO) == LOW porque se usa INPUT_PULLUP (botón a GND)
   if (/*digitalRead(BOTON_INICIO) == LOW &&*/ !secuenciaLista) {
-    secuenciaLista = true; // Marca que la secuencia está lista para ejecutarse
-    ejecutarSecuencia();   // Llama a la función que contiene la lógica de tu tesis
-    secuenciaLista = false; // Permite reiniciar la secuencia después de completarla
+    secuenciaLista = true;  // Marca que la secuencia está lista para ejecutarse
+    _ejecutarSecuencia();   // Llama a la función que contiene la lógica de tu tesis
     Serial.println("Secuencia completada.");
   }
+
 }
 
 // Lee las 4 columnas via I2C y llena el array 'allResistances'
-void leerTodasColumnas() {
+void _leerTodasColumnas() {
   Serial.println("Solicitando datos a las columnas I2C...");
   for (int col = 0; col < NUM_COLUMNS; col++) {
     int slaveAddress = COLUMN_ADDRESSES[col];
@@ -128,7 +131,7 @@ void leerTodasColumnas() {
 }
 
 // Copiar los valores después de leer todas las columnas
-void copiarArrays() {
+void _copiarArrays() {
   // Copia las primeras 12 posiciones
   for (int i = 0; i < 12; i++) {
     instruccionesColumnas[i] = allResistances[i];
@@ -140,7 +143,7 @@ void copiarArrays() {
 }
 
 // Ejecuta las instrucciones del array 'instruccionesColumnas'
-void ejecutarSecuencia() {
+void _ejecutarSecuencia() {
 
   Serial.println("Iniciando ejecucion de instrucciones...");
 
@@ -151,35 +154,17 @@ void ejecutarSecuencia() {
 
     //ejecutamos cada instruccion solo si es valida
     if(resistenciaActual>0){
-      ejecutarInstruccion(resistenciaActual,i); 
+      _procesarInstruccion(resistenciaActual); 
     }
 
   }
 
-}
-
+} 
 
 //ejecuta una instruccion determinada
-void ejecutarInstruccion(float resistenciaActual,int i){
-
-    Serial.print("Procesando Resistencia ");
-    Serial.print(i + 1); // Número de resistencia (1 a 12 - 3 columnas)
-    Serial.print(" (Columna ");
-    Serial.print((i / RESISTANCES_PER_COLUMN) + 1); // Calcula la columna
-    Serial.print(", Rx ");
-    Serial.print((i % RESISTANCES_PER_COLUMN) + 1); // Calcula el Rx dentro de la columna
-    Serial.print("): ");
-
-    // Imprime el valor de la resistencia actual
-    if (resistenciaActual >= 1000.0) {
-      Serial.print(resistenciaActual / 1000.0, 2);
-      Serial.println(" kOhms");
-    } else {
-      Serial.print(resistenciaActual, 2);
-      Serial.println(" Ohms");
-    }
-
+void _procesarInstruccion(float resistenciaActual){
 
     delay(500); // Pequeña pausa entre el procesamiento de cada resistencia
 
 }
+
