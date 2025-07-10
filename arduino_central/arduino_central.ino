@@ -1,8 +1,8 @@
 // ---------------------------------------------------------------------------------------
-// Código para Arduino Nano Central (MAESTRO I2C)
+// Código para Arduino Nano Central (MAESTRO I2C) - Archivo Único
 // Solicita datos de 4 Arduinos de columna (Esclavos I2C) y consolida los valores
 // de resistencia en un array de 16 posiciones.
-// Nota: Utilizamos A4 y A5 para la comunicacion IC2 con cada columna.
+// Nota: Utilizamos A4 y A5 para la comunicacion I2C con cada columna.
 // ---------------------------------------------------------------------------------------
 
 #include <Wire.h>    // Librería para comunicación I2C
@@ -34,6 +34,7 @@
 
 // Objetos de los motores paso a paso. Se inicializan aquí globalmente.
 // Los 2048 pasos por revolución es un ejemplo (para un 28BYJ-48 con driver ULN2003).
+// Ajusta este valor según tu motor.
 Stepper motorX(2048, MOTOR_X_PIN1, MOTOR_X_PIN2, MOTOR_X_PIN3, MOTOR_X_PIN4);
 Stepper motorY(2048, MOTOR_Y_PIN1, MOTOR_Y_PIN2, MOTOR_Y_PIN3, MOTOR_Y_PIN4);
 Stepper motorZ(2048, MOTOR_Z_PIN1, MOTOR_Z_PIN2, MOTOR_Z_PIN3, MOTOR_Z_PIN4);
@@ -41,19 +42,15 @@ Stepper motorZ(2048, MOTOR_Z_PIN1, MOTOR_Z_PIN2, MOTOR_Z_PIN3, MOTOR_Z_PIN4);
 
 // Direcciones I2C de los Arduinos de las columnas
 const int COLUMN_ADDRESSES[] = {0x01, 0x02, 0x03, 0x04};
-const int NUM_COLUMNS = 4;
-const int RESISTANCES_PER_COLUMN = 4;
-const int TOTAL_RESISTANCES = NUM_COLUMNS * RESISTANCES_PER_COLUMN; // 4 columnas * 4 resistencias = 16
 
 // Arrays para almacenar los datos
-float allResistances[TOTAL_RESISTANCES];         // Almacena todas las 16 resistencias leídas
-float instruccionesColumnas[12];                 // Almacena las instrucciones de las primeras 3 columnas (12 posiciones)
+float allResistances[16];                          // Almacena todas las 16 resistencias leídas 4 columnas * 4 resistencias = 16
+float instruccionesColumnas[12];                  // Almacena las instrucciones de las primeras 3 columnas (12 posiciones)
 float bloqueControl[4];                          // Almacena el bloque de control (última columna, 4 posiciones)
 
 // --- DEFINICIONES DE ACCIONES ---
 // Estos valores representan el tipo de acción que se realizará.
 enum ActionType {
-  ACTION_NONE = 0,            // Sin acción / Valor fuera de rango
   AVANZADA = 1,               // Resistencia 190-220 Ohms
   RETROCESO = 2,              // Resistencia 850-1100 Ohms
   GIRAR_IZQUIERDA = 3,        // Resistencia 1.5k-2.5k Ohms
@@ -61,8 +58,6 @@ enum ActionType {
   BLOQUE_CONTROL = 5,         // Resistencia 9k-11k Ohms (no invertible)
   NEGACION = 6,               // Resistencia 19k-21k Ohms (no invertible)
   MELODIA_1 = 7,              // Resistencia 5k-6k Ohms (no invertible)
-  MELODIA_2 = 8,              // Resistencia 7k-8k Ohms (no invertible)
-  ERROR = -1,                // Error en lectura de Vin / comunicacion i2c / circuito abierto / corto invalido / resistencia fuera de rango 
 };
 
 // Variables de control de secuencia
@@ -110,8 +105,6 @@ void rotateRobot(int direction); // Para rotación (ej. del cabezal o del robot 
 // Funciones de acción (placeholders, implementar según tu tesis)
 void playMelody1();
 void playMelody2();
-void handleNegationAction();
-
 
 void setup() {
   Wire.begin(); // Inicia la comunicación I2C como Maestro
@@ -145,11 +138,11 @@ void loop() {
 
     // Imprimir todos los valores leídos para verificación en el Monitor Serial
     Serial.println("Valores de todas las resistencias leídas:");
-    for (int i = 0; i < TOTAL_RESISTANCES; i++) {
+    for (int i = 0; i < 16; i++) {
       Serial.print(" (Columna ");
-      Serial.print((i / RESISTANCES_PER_COLUMN) + 1); // Calcula la columna
+      Serial.print((i / 4) + 1); // Calcula la columna
       Serial.print(", Rx ");
-      Serial.print((i % RESISTANCES_PER_COLUMN) + 1); // Calcula el Rx dentro de la columna
+      Serial.print((i % 4) + 1); // Calcula el Rx dentro de la columna
       Serial.print("): ");
 
       Serial.print(": ");
@@ -183,21 +176,21 @@ void loop() {
 // Lee las 4 columnas via I2C y llena el array 'allResistances'
 void leerTodasColumnas() {
   Serial.println("Solicitando datos a las columnas I2C...");
-  for (int col = 0; col < NUM_COLUMNS; col++) {
+  for (int col = 0; col < 4; col++) {
     int slaveAddress = COLUMN_ADDRESSES[col];
     // Cada float ocupa 4 bytes. Queremos 4 floats por columna, así que 16 bytes.
-    int bytesToRequest = RESISTANCES_PER_COLUMN * sizeof(float); // 4 floats * 4 bytes/float = 16 bytes
+    int bytesToRequest = 4 * sizeof(float); // 4 floats * 4 bytes/float = 16 bytes
 
     // Solicita los bytes de datos al esclavo
     Wire.requestFrom(slaveAddress, bytesToRequest);
 
     // Lee los bytes recibidos y los convierte de nuevo a floats
     FloatBytes fb; // Objeto union para la conversión de bytes a float
-    for (int i = 0; i < RESISTANCES_PER_COLUMN; i++) {
+    for (int i = 0; i < 4; i++) {
       // Índice en el array principal (allResistances)
-      int globalIndex = col * RESISTANCES_PER_COLUMN + i;
+      int globalIndex = col * 4 + i;
 
-      if (Wire.available() >= sizeof(float)) { 
+      if (Wire.available() >= sizeof(float)) {
         for (int j = 0; j < sizeof(float); j++) {
           fb.b[j] = Wire.read(); // Lee los 4 bytes que componen el float
         }
@@ -209,7 +202,7 @@ void leerTodasColumnas() {
         Serial.print(slaveAddress, HEX);
         Serial.print(" para la resistencia ");
         Serial.println(i + 1);
-        allResistances[globalIndex] = ERROR; // Valor de error para indicar fallo en la lectura I2C
+        allResistances[globalIndex] = -1; // Valor de error para indicar fallo en la lectura I2C
       }
     }
     delay(50); // Pequeña pausa entre solicitudes a diferentes esclavos para evitar saturación
@@ -237,37 +230,43 @@ void ejecutarSecuencia() {
   // Recorre las primeras 3 columnas (12 resistencias) para las instrucciones principales
   for (int i = 0; i < 12; i++) {
     float resistenciaActual = instruccionesColumnas[i];
-    ActionType action = mapResistanceToAction(resistenciaActual); // Mapea la resistencia a un tipo de acción
 
-    // --- Lógica de Negación ---
-    if (negacionActiva) {
-      negacionActiva = false; // Desactiva la negación para la siguiente instrucción
+    //solo ejecutamos resistencias validas
+    if(resistenciaActual>0){
 
-      // Si la siguiente instrucción es no-invertible, se ejecuta normalmente
-      if (action == NEGACION || action == BLOQUE_CONTROL || action == MELODIA_1 || action == MELODIA_2) {
-        Serial.println("  -> Negacion: Instruccion no invertible. Omitir Instruccion.");
-        continue; // Omite la ejecución de esta instrucción y pasa a la siguiente en el bucle
-      } else {
-        // Si es invertible, se ejecuta la acción invertida
-        Serial.println("  -> Negacion: Invirtiendo la siguiente instruccion.");
-        ActionType invertedAction = getInvertedAction(action);
-        performAction(invertedAction, i, resistenciaActual);
+      ActionType action = mapResistanceToAction(resistenciaActual); // Mapea la resistencia a un tipo de acción
+  
+      // --- Lógica de Negación ---
+      if (negacionActiva) {
+        negacionActiva = false; // Desactiva la negación para la siguiente instrucción
+  
+        // Si la siguiente instrucción es no-invertible, se omite.
+        if (action == NEGACION || action == BLOQUE_CONTROL || action == MELODIA_1 || action == -1 || action == 0) {
+          Serial.println("  -> Negacion: Instruccion no invertible o de error. Omitir Instruccion.");
+          // No se llama a performAction ni se ejecuta nada, simplemente se omite.
+        } else {
+          // Si es invertible, se ejecuta la acción invertida
+          Serial.println("  -> Negacion: Invirtiendo la siguiente instruccion.");
+          ActionType invertedAction = getInvertedAction(action);
+          performAction(invertedAction, i, resistenciaActual);
+        }
       }
-    }
-    // --- Fin Lógica de Negación ---
-    else { // Si la negación NO está activa
-      if (action == NEGACION) {
-        negacionActiva = true; // Activa la negación para la PRÓXIMA instrucción
-        Serial.println("  -> Negacion activada. La proxima instruccion sera invertida.");
-      } else if (action == BLOQUE_CONTROL) {
-        Serial.println("  -> Accion: BLOQUE DE CONTROL (Ejecutar logica de bloque de control)");
-        executeBlockControlLogicInternal(); // Llama a la función que maneja el bloque de control
-      } else {
-        // Para todas las demás acciones, ejecutar normalmente
-        performAction(action, i, resistenciaActual);
+      // --- Fin Lógica de Negación ---
+      else { // Si la negación NO está activa
+        if (action == NEGACION) {
+          negacionActiva = true; // Activa la negación para la PRÓXIMA instrucción
+          Serial.println("  -> Negacion activada. La proxima instruccion sera invertida.");
+        } else if (action == BLOQUE_CONTROL) {
+          Serial.println("  -> Accion: BLOQUE DE CONTROL (Ejecutar logica de bloque de control)");
+          executeBlockControlLogicInternal(); // Llama a la función que maneja el bloque de control
+        } else {
+          // Para todas las demás acciones, ejecutar normalmente (incluidos los errores que no son negación)
+          performAction(action, i, resistenciaActual);
+        }
       }
+      delay(500); // Pausa entre el procesamiento de cada resistencia (instrucción)
+      
     }
-    delay(500); // Pausa entre el procesamiento de cada resistencia (instrucción)
   }
   Serial.println("Fin de instrucciones principales.");
 }
@@ -288,12 +287,12 @@ ActionType mapResistanceToAction(float resistanceValue) {
     return NEGACION;
   } else if (resistanceValue >= 5000.0 && resistanceValue <= 6000.0) {
     return MELODIA_1;
-  } else if (resistanceValue >= 7000.0 && resistanceValue <= 8000.0) {
-    return MELODIA_2;
   }
-  // Manejo de errores o valores fuera de rango (usando los códigos de error definidos)
-  else {
-    return ERROR;
+  // Manejo de errores o valores fuera de rango (usando los códigos de error/especiales)
+  else if (resistanceValue <=0 ) {
+    return -1; // Todos los códigos de error de resistencia se mapean a ERROR
+  } else {
+    return 0; // Si es un valor positivo pero no cae en ningún rango definido, o es VALOR_EXCEDIDO
   }
 }
 
@@ -395,14 +394,6 @@ void performAction(ActionType action, int globalIndex, float resistanceValue) {
       Serial.println("MELODIA 1 (Reproducir melodia 1)");
       playMelody1();
       break;
-    case MELODIA_2:
-      Serial.println("MELODIA 2 (Reproducir melodia 2)");
-      playMelody2();
-      break;
-    case ERROR:
-      Serial.println("CORTO INVALIDO (No ejecutar accion)");
-      break;
-    case ACTION_NONE:
     default:
       Serial.println("NINGUNA / DESCONOCIDA (No ejecutar accion)");
       break;
@@ -525,13 +516,4 @@ void playMelody1() {
   // Aquí iría el código para reproducir la Melodia 1 (ej. con un buzzer, Tone.h)
 }
 
-void playMelody2() {
-  Serial.println("    (Placeholder) Reproduciendo Melodia 2...");
-  // Aquí iría el código para reproducir la Melodia 2
-}
 
-void handleNegationAction() {
-  Serial.println("    (Placeholder) Realizando accion de Negacion (si aplica)...");
-  // Aquí iría el código para la acción de Negación en sí misma,
-  // si la "negación" no solo invierte la siguiente, sino que también tiene una acción propia.
-}
