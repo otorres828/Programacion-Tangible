@@ -12,15 +12,32 @@
 
 #define BOTON_INICIO 2 // Pin del botón (con resistencia pull-up)
 
-// Definición de los pines del motor paso a paso
-// Asegúrate de que estos pines coincidan con la conexión de tu motor
-#define MOTOR_PIN1 8
-#define MOTOR_PIN2 9
-#define MOTOR_PIN3 10
-#define MOTOR_PIN4 11
+// Definición de los pines para los motores paso a paso
+// Asignación de pines para 3 motores paso a paso (CoreXY X, CoreXY Y, Eje Z)
+// Ajusta estos pines según tus conexiones físicas.
+// Si tu motor usa 2 pines (paso/dirección) o 4 pines (bobinas), ajusta la definición de Stepper.
+// Aquí asumimos 4 pines por motor.
+#define MOTOR_X_PIN1 8
+#define MOTOR_X_PIN2 9
+#define MOTOR_X_PIN3 10
+#define MOTOR_X_PIN4 11
 
-// Objeto del motor paso a paso. Se inicializa aquí globalmente.
-Stepper motor(2048, MOTOR_PIN1, MOTOR_PIN2, MOTOR_PIN3, MOTOR_PIN4); // Definición de motor 1
+#define MOTOR_Y_PIN1 6  // Pines digitales disponibles: D6, D7, D12, D13
+#define MOTOR_Y_PIN2 7
+#define MOTOR_Y_PIN3 12
+#define MOTOR_Y_PIN4 13
+
+#define MOTOR_Z_PIN1 A0 // Pines analógicos como digitales: A0, A1, A2, A3
+#define MOTOR_Z_PIN2 A1
+#define MOTOR_Z_PIN3 A2
+#define MOTOR_Z_PIN4 A3
+
+// Objetos de los motores paso a paso. Se inicializan aquí globalmente.
+// Los 2048 pasos por revolución es un ejemplo (para un 28BYJ-48 con driver ULN2003).
+Stepper motorX(2048, MOTOR_X_PIN1, MOTOR_X_PIN2, MOTOR_X_PIN3, MOTOR_X_PIN4);
+Stepper motorY(2048, MOTOR_Y_PIN1, MOTOR_Y_PIN2, MOTOR_Y_PIN3, MOTOR_Y_PIN4);
+Stepper motorZ(2048, MOTOR_Z_PIN1, MOTOR_Z_PIN2, MOTOR_Z_PIN3, MOTOR_Z_PIN4);
+
 
 // Direcciones I2C de los Arduinos de las columnas
 const int COLUMN_ADDRESSES[] = {0x01, 0x02, 0x03, 0x04};
@@ -58,6 +75,21 @@ union FloatBytes {
   byte b[4];  // Sus 4 bytes constituyentes
 };
 
+// --- ESTADO GLOBAL DEL ROBOT ---
+int robotX = 0; // Posición actual en X (columna de la cuadrícula 0-5)
+int robotY = 0; // Posición actual en Y (fila de la cuadrícula 0-5)
+
+enum RobotOrientation {
+  NORTH, // Orientación Norte (hacia +Y)
+  EAST,  // Orientación Este (hacia +X)
+  SOUTH, // Orientación Sur (hacia -Y)
+  WEST   // Orientación Oeste (hacia -X)
+};
+RobotOrientation robotOrientation = NORTH; // Orientación inicial del robot
+
+// --- DIMENSIONES DEL TABLERO ---
+const int GRID_SIZE = 6; // Cuadrícula de 6x6
+
 // --- DECLARACIÓN DE FUNCIONES (PROTOTIPOS) ---
 // Se declaran aquí porque las funciones se llaman entre sí antes de ser definidas.
 void leerTodasColumnas();
@@ -67,27 +99,37 @@ ActionType mapResistanceToAction(float resistanceValue);
 void performAction(ActionType action, int globalIndex, float resistanceValue);
 ActionType getInvertedAction(ActionType originalAction);
 void executeBlockControlLogicInternal();
-void moveMotor(int steps);
+
+// Funciones de movimiento del robot
+bool isValidPosition(int x, int y);
+void printRobotState();
+void moveXY_steps(int deltaX_steps, int deltaY_steps); // Para movimiento CoreXY
+void moveZ_steps(int deltaZ_steps); // Para movimiento del eje Z
+void rotateRobot(int direction); // Para rotación (ej. del cabezal o del robot si es omnidireccional)
+
+// Funciones de acción (placeholders, implementar según tu tesis)
 void playMelody1();
 void playMelody2();
 void handleNegationAction();
 
 
-// --- FUNCIÓN setup() ---
-// Se ejecuta una sola vez al encender o reiniciar el Arduino.
 void setup() {
   Wire.begin(); // Inicia la comunicación I2C como Maestro
   Serial.begin(4800); // Para comunicación con el Monitor Serial del PC
 
   pinMode(BOTON_INICIO, INPUT_PULLUP); // Configura el pin del botón con resistencia pull-up interna
 
-  // Configura la velocidad del motor paso a paso (pasos por minuto)
-  motor.setSpeed(60); // Ejemplo: 60 RPM (ajustar según tu motor y necesidades)
+  // Configura la velocidad de los motores paso a paso (pasos por minuto)
+  motorX.setSpeed(60); // Ejemplo: 60 RPM
+  motorY.setSpeed(60);
+  motorZ.setSpeed(60);
 
   Serial.println("----------------------------------");
   Serial.println("   Arduino Central (Maestro I2C)  ");
   Serial.println("----------------------------------");
   Serial.println("Iniciando. Esperando lecturas de columnas...");
+
+  printRobotState(); // Imprime el estado inicial del robot
 }
 
 // --- FUNCIÓN loop() ---
@@ -155,7 +197,7 @@ void leerTodasColumnas() {
       // Índice en el array principal (allResistances)
       int globalIndex = col * RESISTANCES_PER_COLUMN + i;
 
-      if (Wire.available() >= sizeof(float)) { // Asegúrate de que haya suficientes bytes disponibles para un float (4 bytes)
+      if (Wire.available() >= sizeof(float)) { 
         for (int j = 0; j < sizeof(float); j++) {
           fb.b[j] = Wire.read(); // Lee los 4 bytes que componen el float
         }
@@ -203,8 +245,8 @@ void ejecutarSecuencia() {
 
       // Si la siguiente instrucción es no-invertible, se ejecuta normalmente
       if (action == NEGACION || action == BLOQUE_CONTROL || action == MELODIA_1 || action == MELODIA_2) {
-        Serial.println("  -> Negacion: Instruccion no invertible. Ejecutando normalmente.");
-        performAction(action, i, resistenciaActual);
+        Serial.println("  -> Negacion: Instruccion no invertible. Omitir Instruccion.");
+        continue; // Omite la ejecución de esta instrucción y pasa a la siguiente en el bucle
       } else {
         // Si es invertible, se ejecuta la acción invertida
         Serial.println("  -> Negacion: Invirtiendo la siguiente instruccion.");
@@ -269,23 +311,79 @@ void performAction(ActionType action, int globalIndex, float resistanceValue) {
     Serial.print(" Ohms -> ");
   }
 
+  printRobotState(); // Imprime el estado del robot ANTES de la acción
+
   // Ejecución de la acción basada en el tipo de acción
   switch (action) {
     case AVANZADA:
       Serial.println("AVANZADA (Mover motor hacia adelante)");
-      moveMotor(500); // Ejemplo: mover 500 pasos
+      { // Bloque de ámbito para variables locales
+        int nextX = robotX;
+        int nextY = robotY;
+        // Calcula la próxima posición basada en la orientación actual
+        switch (robotOrientation) {
+          case NORTH: nextY++; break;
+          case EAST:  nextX++; break;
+          case SOUTH: nextY--; break;
+          case WEST:  nextX--; break;
+        }
+        if (isValidPosition(nextX, nextY)) {
+          // Asumimos 100 pasos por unidad de cuadrícula para CoreXY. Ajusta según tu calibración.
+          int deltaX_steps = (nextX - robotX) * 100;
+          int deltaY_steps = (nextY - robotY) * 100;
+          moveXY_steps(deltaX_steps, deltaY_steps);
+          robotX = nextX; // Actualiza la posición del robot
+          robotY = nextY;
+        } else {
+          Serial.println("    IGNORADO: Limite de tablero alcanzado.");
+        }
+      }
       break;
     case RETROCESO:
       Serial.println("RETROCESO (Mover motor hacia atras)");
-      moveMotor(-500); // Ejemplo: mover -500 pasos
+      { // Bloque de ámbito para variables locales
+        int nextX = robotX;
+        int nextY = robotY;
+        // Calcula la próxima posición basada en la orientación actual (dirección opuesta)
+        switch (robotOrientation) {
+          case NORTH: nextY--; break;
+          case EAST:  nextX--; break;
+          case SOUTH: nextY++; break;
+          case WEST:  nextX++; break;
+        }
+        if (isValidPosition(nextX, nextY)) {
+          // Asumimos 100 pasos por unidad de cuadrícula para CoreXY. Ajusta según tu calibración.
+          int deltaX_steps = (nextX - robotX) * 100;
+          int deltaY_steps = (nextY - robotY) * 100;
+          moveXY_steps(deltaX_steps, deltaY_steps);
+          robotX = nextX; // Actualiza la posición del robot
+          robotY = nextY;
+        } else {
+          Serial.println("    IGNORADO: Limite de tablero alcanzado.");
+        }
+      }
       break;
     case GIRAR_IZQUIERDA:
       Serial.println("GIRAR IZQUIERDA (Mover motor para girar izquierda)");
-      moveMotor(200); // Ejemplo: mover 200 pasos para girar
+      rotateRobot(-1); // -1 para girar a la izquierda
+      // Actualiza la orientación del robot
+      switch (robotOrientation) {
+        case NORTH: robotOrientation = WEST; break;
+        case EAST:  robotOrientation = NORTH; break;
+        case SOUTH: robotOrientation = EAST; break;
+        case WEST:  robotOrientation = SOUTH; break;
+      }
       break;
     case GIRAR_DERECHA:
       Serial.println("GIRAR DERECHA (Mover motor para girar derecha)");
-      moveMotor(-200); // Ejemplo: mover -200 pasos para girar
+      rotateRobot(1); // +1 para girar a la derecha
+      // Actualiza la orientación del robot
+      switch (robotOrientation) {
+        case NORTH: robotOrientation = EAST; break;
+        case EAST:  robotOrientation = SOUTH; break;
+        case SOUTH: robotOrientation = WEST; break;
+        case WEST:  robotOrientation = NORTH; break;
+      }
       break;
     case BLOQUE_CONTROL: // Esto no debería ser llamado directamente desde ejecutarSecuencia si se maneja allí
       Serial.println("BLOQUE DE CONTROL (Ya manejado en ejecutarSecuencia)");
@@ -309,20 +407,19 @@ void performAction(ActionType action, int globalIndex, float resistanceValue) {
       Serial.println("NINGUNA / DESCONOCIDA (No ejecutar accion)");
       break;
   }
+  printRobotState(); // Imprime el estado del robot DESPUÉS de la acción
 }
 
 // Obtiene la acción invertida para una acción dada.
 ActionType getInvertedAction(ActionType originalAction) {
-  // esta función solo será llamada con acciones invertibles.
-  // Por lo tanto, los casos para NEGACION, BLOQUE_CONTROL, MELODIA_1, MELODIA_2  son redundantes aquí.
   switch (originalAction) {
     case AVANZADA: return RETROCESO;
     case RETROCESO: return AVANZADA;
     case GIRAR_IZQUIERDA: return GIRAR_DERECHA;
     case GIRAR_DERECHA: return GIRAR_IZQUIERDA;
     default:
-      return originalAction; 
-                             
+      return originalAction; // Esto solo se alcanzaría si se llama con un tipo no invertible,
+                             // lo cual el flujo de ejecutarSecuencia ya previene.
   }
 }
 
@@ -354,15 +451,74 @@ void executeBlockControlLogicInternal() {
   Serial.println("  -> Fin de Bloque de Control Interno.");
 }
 
+// --- FUNCIONES DE MOVIMIENTO DEL ROBOT ---
+
+// Verifica si una posición (x, y) está dentro de los límites de la cuadrícula.
+bool isValidPosition(int x, int y) {
+  return x >= 0 && x < GRID_SIZE && y >= 0 && y < GRID_SIZE;
+}
+
+// Imprime el estado actual del robot (posición y orientación) en el Monitor Serial.
+void printRobotState() {
+  Serial.print("  Posicion actual: (");
+  Serial.print(robotX);
+  Serial.print(", ");
+  Serial.print(robotY);
+  Serial.print(") Orientacion: ");
+  switch (robotOrientation) {
+    case NORTH: Serial.println("NORTE"); break;
+    case EAST:  Serial.println("ESTE");  break;
+    case SOUTH: Serial.println("SUR");   break;
+    case WEST:  Serial.println("OESTE"); break;
+  }
+}
+
+// Placeholder para el movimiento CoreXY.
+// DEBES IMPLEMENTAR LA CINEMÁTICA REAL DE COREXY AQUÍ.
+// deltaX_steps y deltaY_steps son los pasos netos que el robot debería moverse en X e Y.
+void moveXY_steps(int deltaX_steps, int deltaY_steps) {
+  Serial.print("    (CoreXY) Moviendo en X: "); Serial.print(deltaX_steps);
+  Serial.print(", Y: "); Serial.print(deltaY_steps); Serial.println(" pasos.");
+  // --- IMPLEMENTACIÓN DE LA CINEMÁTICA COREXY ---
+  // Para un sistema CoreXY, un movimiento en X o Y requiere que AMBOS motores (motorX y motorY)
+  // se muevan una cantidad específica de pasos, a menudo combinando sus movimientos.
+  // Ejemplo conceptual (NO ES LA IMPLEMENTACIÓN COMPLETA DE COREXY):
+  // int motor1_actual_steps = deltaX_steps + deltaY_steps;
+  // int motor2_actual_steps = deltaX_steps - deltaY_steps;
+  // motorX.step(motor1_actual_steps);
+  // motorY.step(motor2_actual_steps);
+  // Por ahora, solo para simulación, movemos un motor si el delta es significativo.
+  // ELIMINA ESTAS LÍNEAS Y REEMPLAZALAS CON TU LÓGICA COREXY REAL.
+  if (deltaX_steps != 0) motorX.step(deltaX_steps);
+  if (deltaY_steps != 0) motorY.step(deltaY_steps);
+  // ---------------------------------------------
+}
+
+// Mueve el motor del eje Z.
+void moveZ_steps(int deltaZ_steps) {
+  Serial.print("    Moviendo eje Z: ");
+  Serial.print(deltaZ_steps);
+  Serial.println(" pasos.");
+  motorZ.step(deltaZ_steps); // Mueve el motor del eje Z el número de pasos especificado
+}
+
+// Placeholder para la rotación del robot.
+// DEBES IMPLEMENTAR LA LÓGICA REAL DE ROTACIÓN AQUÍ.
+// 'direction' puede ser +1 para derecha, -1 para izquierda.
+void rotateRobot(int direction) {
+  Serial.print("    Rotando robot ");
+  if (direction == 1) Serial.println("a la DERECHA.");
+  else Serial.println("a la IZQUIERDA.");
+  // --- IMPLEMENTACIÓN DE LA ROTACIÓN FÍSICA DEL ROBOT ---
+  // Esto dependerá de cómo tu robot CoreXY maneje la rotación.
+  // Podría ser un movimiento combinado de motorX y motorY si el cabezal rota,
+  // o si el robot tiene un mecanismo de giro independiente.
+  // Por ahora, solo una impresión.
+  // -----------------------------------------------------
+}
+
 // --- FUNCIONES DE ACCIÓN (PLACEHOLDERS) ---
 // DEBES IMPLEMENTAR LA LÓGICA REAL PARA CADA UNA DE ESTAS FUNCIONES EN TU TESIS.
-
-void moveMotor(int steps) {
-  Serial.print("    Moviendo motor: ");
-  Serial.print(steps);
-  Serial.println(" pasos.");
-  motor.step(steps); // Mueve el motor el número de pasos especificado
-}
 
 void playMelody1() {
   Serial.println("    (Placeholder) Reproduciendo Melodia 1...");
