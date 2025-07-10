@@ -21,14 +21,23 @@ float allResistances[TOTAL_RESISTANCES]; // Array para almacenar todas las resis
 float instruccionesColumnas[12];         // Array para almacenar las instrucciones de 3 columnas (12 posiciones)
 float bloqueControl[4];                  // Array para almacenar el bloque de control (4 posiciones)
 
-const int AVANZADA_1      = 1;
-const int RETROCESO       = 2;
-const int GIRAR_IZQUIERDA = 3;
-const int GIRAR_DERECHA   = 4
-const int BLOQUE_CONTROL  = 5;
-const int NEGACION        = 6;
-const int MELODIA_1       = 7;
-const int MELODIA_2       = 8;
+// --- DEFINICIONES DE ACCIONES
+enum ActionType {
+    ACTION_NONE = 0,            // Sin acción / Valor fuera de rango
+    AVANZADA   = 1,             // Resistencia 190-220 Ohms
+    RETROCESO = 2,              // Resistencia 110-850 Ohms (ajustado para ser un rango válido)
+    GIRAR_IZQUIERDA = 3,        // Resistencia 1.5k-2.5k Ohms
+    GIRAR_DERECHA = 4,          // Resistencia 3.5k-4.5k Ohms
+    BLOQUE_CONTROL = 5,         // Resistencia 9k-11k Ohms
+    NEGACION = 6,               // Resistencia 19k-21k Ohms
+    MELODIA_1 = 7,              // Resistencia 5k-6k Ohms
+    MELODIA_2 = 8,              // Resistencia 7k-8k Ohms
+    ERROR_I2C = -9999,          // Error de comunicación I2C
+    ERROR_VIN = -1,             // Error en lectura de Vin
+    CIRCUITO_ABIERTO = -999,    // Resistencia muy alta / Circuito abierto
+    CORTO_INVALIDO = -2,        // Corto circuito / Valor inválido
+    VALOR_EXCEDIDO = 99999      // Resistencia válida pero fuera de los rangos de acción definidos
+};
 
 // Variables de control de secuencia 
 bool secuenciaLista = false;
@@ -147,6 +156,7 @@ void _ejecutarSecuencia() {
 
   Serial.println("Iniciando ejecucion de instrucciones...");
 
+  int negacion = 0;
   // Recorre las primeras 3 columnas (12 resistencias si las hubiese)
   for (int i = 0; i < 12; i++) { 
 
@@ -154,7 +164,29 @@ void _ejecutarSecuencia() {
 
     //ejecutamos cada instruccion solo si es valida
     if(resistenciaActual>0){
-      _procesarInstruccion(resistenciaActual); 
+
+      ActionType action = ACTION_NONE; // Valor por defecto si no cae en ningún rango
+
+      if (resistanceValue >= 190.0 && resistanceValue <= 220.0) {
+        action = AVANZADA;
+      } else if (resistanceValue >= 850.0 && resistanceValue <= 1100.0) { // Rango RETROCESO ajustado
+        action = RETROCESO;
+      } else if (resistanceValue >= 1500.0 && resistanceValue <= 2500.0) { // Rango GIRAR_IZQUIERDA (2k)
+        action = GIRAR_IZQUIERDA;
+      } else if (resistanceValue >= 3500.0 && resistanceValue <= 4500.0) { // Rango GIRAR_DERECHA (4k)
+        action = GIRAR_DERECHA;
+      } else if (resistanceValue >= 9000.0 && resistanceValue <= 11000.0) { // Rango BLOQUE_CONTROL (10k)
+        action = BLOQUE_CONTROL;
+      } else if (resistanceValue >= 19000.0 && resistanceValue <= 21000.0) { // Rango NEGACION (20k)
+        action = NEGACION;
+      } else if (resistanceValue >= 5000.0 && resistanceValue <= 6000.0) { // Rango MELODIA_1 (ej. 5.5k)
+        action = MELODIA_1;
+      } else if (resistanceValue >= 7000.0 && resistanceValue <= 8000.0) { // Rango MELODIA_1 (ej. 7.5k)
+        action = MELODIA_2;
+      }
+
+
+      delay(500); // Pequeña pausa entre el procesamiento de cada resistencia
     }
 
   }
@@ -163,8 +195,6 @@ void _ejecutarSecuencia() {
 
 //ejecuta una instruccion determinada
 void _procesarInstruccion(float resistenciaActual){
-
-    delay(500); // Pequeña pausa entre el procesamiento de cada resistencia
 
 }
 
