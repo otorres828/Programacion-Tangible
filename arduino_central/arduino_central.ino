@@ -61,16 +61,13 @@ enum RobotOrientation {
 
 RobotOrientation robotOrientation = NORTH; // Orientación inicial del robot
 
-// --- DIMENSIONES DEL TABLERO ---
-const int GRID_SIZE = 6; // Cuadrícula de 6x6
-
 // --- DECLARACIÓN DE FUNCIONES---
 void leerTodasColumnas();
 void copiarArrays();
 void ejecutarSecuencia();
 ActionType mapResistanceToAction(float resistanceValue);
-void performAction(ActionType action, int globalIndex, float resistanceValue);
 ActionType getInvertedAction(ActionType originalAction);
+void performAction(ActionType action, int globalIndex, float resistanceValue);
 void executeBlockControlLogicInternal();
 
 // Funciones de movimiento del robot
@@ -285,11 +282,12 @@ void performAction(ActionType action, int globalIndex, float resistanceValue) {
 
   // Ejecución de la acción basada en el tipo de acción
   switch (action) {
+
+    int nextX = robotX;
+    int nextY = robotY;
+    
     case AVANZADA:
       Serial.println("AVANZADA (Mover motor hacia adelante)");
-      { // Bloque de ámbito para variables locales
-        int nextX = robotX;
-        int nextY = robotY;
         // Calcula la próxima posición basada en la orientación actual
         switch (robotOrientation) {
           case NORTH: nextY++; break;
@@ -307,13 +305,11 @@ void performAction(ActionType action, int globalIndex, float resistanceValue) {
         } else {
           Serial.println("    IGNORADO: Limite de tablero alcanzado.");
         }
-      }
+      // 
       break;
     case RETROCESO:
       Serial.println("RETROCESO (Mover motor hacia atras)");
-      { // Bloque de ámbito para variables locales
-        int nextX = robotX;
-        int nextY = robotY;
+       
         // Calcula la próxima posición basada en la orientación actual (dirección opuesta)
         switch (robotOrientation) {
           case NORTH: nextY--; break;
@@ -331,7 +327,7 @@ void performAction(ActionType action, int globalIndex, float resistanceValue) {
         } else {
           Serial.println("    IGNORADO: Limite de tablero alcanzado.");
         }
-      }
+      
       break;
     case GIRAR_IZQUIERDA:
       Serial.println("GIRAR IZQUIERDA (Mover motor para girar izquierda)");
@@ -417,6 +413,7 @@ void executeBlockControlLogicInternal() {
 
 // Verifica si una posición (x, y) está dentro de los límites de la cuadrícula.
 bool isValidPosition(int x, int y) {
+  int GRID_SIZE = 6; // Cuadrícula de 6x6
   return x >= 0 && x < GRID_SIZE && y >= 0 && y < GRID_SIZE;
 }
 
