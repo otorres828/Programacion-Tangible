@@ -23,8 +23,15 @@ const int COLUMN_ADDRESSES[] = {0x01, 0x02, 0x03, 0x04};
 
 // Arrays para almacenar los datos
 float allResistances[16];                          // Almacena todas las 16 resistencias leídas 4 columnas * 4 resistencias = 16
-float instruccionesColumnas[12];                  // Almacena las instrucciones de las primeras 3 columnas (12 posiciones)
-float bloqueControl[4];                          // Almacena el bloque de control (última columna, 4 posiciones)
+// float instruccionesColumnas[12];                  // Almacena las instrucciones de las primeras 3 columnas (12 posiciones)
+// float bloqueControl[4];                          // Almacena el bloque de control (última columna, 4 posiciones)
+
+//avanza ->avanza -> g.derecha ->avanza -> negacion -> avanza -> bloque control
+//izquierda izquierda negacion izquierda
+
+float instruccionesColumnas[12] = {200, 200, 4000, 200, 20000, 200, 10000, -1, -1, -1, -1, -1};
+float bloqueControl[4] = {2000, 2000, 20000, 200};
+
 
 // --- DEFINICIONES DE ACCIONES ---
 // Estos valores representan el tipo de acción que se realizará.
@@ -101,42 +108,42 @@ void loop() {
   // 1. Leer todas las columnas y guardar en el array
   // Esta sección se ejecuta solo una vez al inicio o hasta que se presione el botón
   // si 'secuenciaLista' es falsa.
-  if (!secuenciaLista) {
-    leerTodasColumnas(); // Llama a la función para solicitar datos a los esclavos
-    copiarArrays();     // Copia los valores leídos a los arrays de instrucciones y bloque de control
-    Serial.println("Instrucciones cargadas. Esperando botón...");
+  // if (!secuenciaLista) {
+  //   leerTodasColumnas(); // Llama a la función para solicitar datos a los esclavos
+  //   copiarArrays();     // Copia los valores leídos a los arrays de instrucciones y bloque de control
+  //   Serial.println("Instrucciones cargadas. Esperando botón...");
 
-    // Imprimir todos los valores leídos para verificación en el Monitor Serial
-    Serial.println("Valores de todas las resistencias leídas:");
-    for (int i = 0; i < 16; i++) {
-      Serial.print(" (Columna ");
-      Serial.print((i / 4) + 1); // Calcula la columna
-      Serial.print(", Rx ");
-      Serial.print((i % 4) + 1); // Calcula el Rx dentro de la columna
-      Serial.print("): ");
+  //   // Imprimir todos los valores leídos para verificación en el Monitor Serial
+  //   Serial.println("Valores de todas las resistencias leídas:");
+  //   for (int i = 0; i < 16; i++) {
+  //     Serial.print(" (Columna ");
+  //     Serial.print((i / 4) + 1); // Calcula la columna
+  //     Serial.print(", Rx ");
+  //     Serial.print((i % 4) + 1); // Calcula el Rx dentro de la columna
+  //     Serial.print("): ");
 
-      Serial.print(": ");
-      // Formatear la salida para mayor legibilidad (Ohms, kOhms, MOhms)
-      if (allResistances[i] < 0) {
-        Serial.println("CORTO / Valor Invalido");
-      } else if (allResistances[i] >= 1000.0) {
-        Serial.print(allResistances[i] / 1000.0, 2);
-        Serial.println(" kOhms");
-      } else {
-        Serial.print(allResistances[i], 2);
-        Serial.println(" Ohms");
-      }
-    }
-    Serial.println("----------------------------------");
-    delay(1000); // Pequeña pausa para que no se sature el serial
-  }
-
+  //     Serial.print(": ");
+  //     // Formatear la salida para mayor legibilidad (Ohms, kOhms, MOhms)
+  //     if (allResistances[i] < 0) {
+  //       Serial.println("CORTO / Valor Invalido");
+  //     } else if (allResistances[i] >= 1000.0) {
+  //       Serial.print(allResistances[i] / 1000.0, 2);
+  //       Serial.println(" kOhms");
+  //     } else {
+  //       Serial.print(allResistances[i], 2);
+  //       Serial.println(" Ohms");
+  //     }
+  //   }
+  //   Serial.println("----------------------------------");
+  //   delay(1000); // Pequeña pausa para que no se sature el serial
+  // }
+                        
   // 2. Si se presiona el botón, ejecutar secuencia
   // digitalRead(BOTON_INICIO) == LOW porque se usa INPUT_PULLUP (botón a GND)
-  if (digitalRead(BOTON_INICIO) == LOW && !secuenciaLista) {
+  if (/*digitalRead(BOTON_INICIO) == LOW &&*/ !secuenciaLista) {
     secuenciaLista = true; // Marca que la secuencia está lista para ejecutarse
     ejecutarSecuencia();   // Llama a la función que contiene la lógica de tu tesis
-    secuenciaLista = false; // Permite reiniciar la secuencia después de completarla
+    // secuenciaLista = false; // Permite reiniciar la secuencia después de completarla
     Serial.println("Secuencia completada.");
   }
 }
@@ -209,7 +216,7 @@ void ejecutarSecuencia() {
         negacionActiva = false; // Desactiva la negación para la siguiente instrucción
   
         // Si la siguiente instrucción es no-invertible, se omite.
-        if (action == NEGACION || action == BLOQUE_CONTROL || action == MELODIA_1 || action == -1 || action == 0) {
+        if (action == NEGACION || action == BLOQUE_CONTROL || action == MELODIA_1 || action == 0) {
           Serial.println("  -> Negacion: Instruccion no invertible o de error. Omitir Instruccion.");
           // No se llama a performAction ni se ejecuta nada, simplemente se omite.
         } else {
@@ -241,6 +248,7 @@ void ejecutarSecuencia() {
 
 // Mapea un valor de resistencia a un tipo de acción (no ejecuta, solo clasifica).
 ActionType mapResistanceToAction(float resistanceValue) {
+
   if (resistanceValue >= 190.0 && resistanceValue <= 220.0) {
     return AVANZADA;
   } else if (resistanceValue >= 850.0 && resistanceValue <= 1100.0) {
@@ -262,11 +270,16 @@ ActionType mapResistanceToAction(float resistanceValue) {
   } else {
     return 0; // Si es un valor positivo pero no cae en ningún rango definido, o es VALOR_EXCEDIDO
   }
+
 }
 
 // Ejecuta una acción específica basada en el ActionType.
 void performAction(ActionType action, int globalIndex, float resistanceValue) {
   // Imprime el valor de la resistencia actual para el contexto
+  Serial.print(" Accion -> ");
+  Serial.print(action);
+  Serial.print(" de la ");
+
   Serial.print("  Resistencia ");
   Serial.print(globalIndex + 1);
   Serial.print(": ");
@@ -278,16 +291,11 @@ void performAction(ActionType action, int globalIndex, float resistanceValue) {
     Serial.print(" Ohms -> ");
   }
 
-  printRobotState(); // Imprime el estado del robot ANTES de la acción
-
-  // Ejecución de la acción basada en el tipo de acción
-  switch (action) {
-
-    int nextX = robotX;
-    int nextY = robotY;
+  int nextX = robotX;
+  int nextY = robotY;
     
-    case AVANZADA:
-      Serial.println("AVANZADA (Mover motor hacia adelante)");
+  if(action==AVANZADA){
+      Serial.print("AVANZADA (Mover motor hacia adelante)");
         // Calcula la próxima posición basada en la orientación actual
         switch (robotOrientation) {
           case NORTH: nextY++; break;
@@ -306,9 +314,9 @@ void performAction(ActionType action, int globalIndex, float resistanceValue) {
           Serial.println("    IGNORADO: Limite de tablero alcanzado.");
         }
       // 
-      break;
-    case RETROCESO:
-      Serial.println("RETROCESO (Mover motor hacia atras)");
+  }
+  else if(action==RETROCESO){
+      Serial.print("RETROCESO (Mover motor hacia atras)");
        
         // Calcula la próxima posición basada en la orientación actual (dirección opuesta)
         switch (robotOrientation) {
@@ -328,8 +336,8 @@ void performAction(ActionType action, int globalIndex, float resistanceValue) {
           Serial.println("    IGNORADO: Limite de tablero alcanzado.");
         }
       
-      break;
-    case GIRAR_IZQUIERDA:
+  }
+  else if(action==GIRAR_IZQUIERDA){
       Serial.println("GIRAR IZQUIERDA (Mover motor para girar izquierda)");
       rotateRobot(-1); // -1 para girar a la izquierda
       // Actualiza la orientación del robot
@@ -339,9 +347,9 @@ void performAction(ActionType action, int globalIndex, float resistanceValue) {
         case SOUTH: robotOrientation = EAST; break;
         case WEST:  robotOrientation = SOUTH; break;
       }
-      break;
-    case GIRAR_DERECHA:
-      Serial.println("GIRAR DERECHA (Mover motor para girar derecha)");
+  }
+  else if(action==GIRAR_DERECHA){
+      Serial.print("GIRAR DERECHA (Mover motor para girar derecha)");
       rotateRobot(1); // +1 para girar a la derecha
       // Actualiza la orientación del robot
       switch (robotOrientation) {
@@ -350,21 +358,21 @@ void performAction(ActionType action, int globalIndex, float resistanceValue) {
         case SOUTH: robotOrientation = WEST; break;
         case WEST:  robotOrientation = NORTH; break;
       }
-      break;
-    case BLOQUE_CONTROL: // Esto no debería ser llamado directamente desde ejecutarSecuencia si se maneja allí
+  }
+  else if(action==BLOQUE_CONTROL){
       Serial.println("BLOQUE DE CONTROL (Ya manejado en ejecutarSecuencia)");
-      break;
-    case NEGACION: // Esto no debería ser llamado directamente desde ejecutarSecuencia si se maneja allí
+  }
+  else if(action==NEGACION){
       Serial.println("NEGACION (Ya manejado en ejecutarSecuencia)");
-      break;
-    case MELODIA_1:
+  }
+  else if(action==MELODIA_1){
       Serial.println("MELODIA 1 (Reproducir melodia 1)");
       playMelody1();
-      break;
-    default:
-      Serial.println("NINGUNA / DESCONOCIDA (No ejecutar accion)");
-      break;
   }
+  else{
+      Serial.println("NINGUNA / DESCONOCIDA (No ejecutar accion)");
+  }
+  
   printRobotState(); // Imprime el estado del robot DESPUÉS de la acción
 }
 
@@ -384,26 +392,52 @@ ActionType getInvertedAction(ActionType originalAction) {
 // Ejecuta la lógica del bloque de control, procesando las 4 resistencias de bloqueControl.
 void executeBlockControlLogicInternal() {
   Serial.println("  -> Ejecutando Bloque de Control Interno...");
+
+  bool negacionActiva = false;
+
   for (int i = 0; i < 4; i++) {
     float controlResistencia = bloqueControl[i];
-    ActionType controlAction = mapResistanceToAction(controlResistencia);
 
-    Serial.print("    Control Bloque "); Serial.print(i+1); Serial.print(": ");
-    if (controlResistencia >= 1000.0) {
-      Serial.print(controlResistencia / 1000.0, 2);
-      Serial.print(" kOhms -> ");
-    } else {
-      Serial.print(controlResistencia, 2);
-      Serial.print(" Ohms -> ");
+    if(controlResistencia>0){
+
+      ActionType controlAction = mapResistanceToAction(controlResistencia);
+  
+      // Si la instrucción del bloque de control es BLOQUE_CONTROL, la omitimos para evitar un bucle infinito.
+      if (controlAction == BLOQUE_CONTROL) {
+        Serial.println("BLOQUE DE CONTROL (Omitido para evitar recursión)");
+      } else {
+        
+        // --- Lógica de Negación ---
+        if (negacionActiva) {
+          negacionActiva = false; // Desactiva la negación para la siguiente instrucción
+    
+          // Si la siguiente instrucción es no-invertible, se omite.
+          if (controlAction == NEGACION  || controlAction == MELODIA_1) {
+            Serial.println("  -> Negacion: Instruccion no invertible o de error. Omitir Instruccion.");
+            // No se llama a performAction ni se ejecuta nada, simplemente se omite.
+          } else {
+            // Si es invertible, se ejecuta la acción invertida
+            Serial.println("  -> Negacion: Invirtiendo la siguiente instruccion.");
+            ActionType invertedAction = getInvertedAction(controlAction);
+            performAction(invertedAction, i, controlResistencia);
+          }
+        }
+        // --- Fin Lógica de Negación ---
+        else { // Si la negación NO está activa
+          if (controlAction == NEGACION) {
+            negacionActiva = true; // Activa la negación para la PRÓXIMA instrucción
+            Serial.println("  -> Negacion activada. La proxima instruccion sera invertida.");
+          } else {
+            // Para todas las demás acciones, ejecutar normalmente 
+            performAction(controlAction, i, controlResistencia);
+          }
+        }
+
+      
+      }
+
     }
 
-    // Si la instrucción del bloque de control es BLOQUE_CONTROL, la omitimos para evitar un bucle infinito.
-    if (controlAction == BLOQUE_CONTROL) {
-      Serial.println("BLOQUE DE CONTROL (Omitido para evitar recursión)");
-    } else {
-      // Ejecutamos la acción del bloque de control (sin manejar negación aquí)
-      performAction(controlAction, i, controlResistencia); // Reutilizamos performAction
-    }
     delay(300); // Pausa entre instrucciones de control
   }
   Serial.println("  -> Fin de Bloque de Control Interno.");
@@ -436,8 +470,8 @@ void printRobotState() {
 // DEBES IMPLEMENTAR LA CINEMÁTICA REAL DE COREXY AQUÍ.
 // deltaX_steps y deltaY_steps son los pasos netos que el robot debería moverse en X e Y.
 void moveXY_steps(int deltaX_steps, int deltaY_steps) {
-  Serial.print("    (CoreXY) Moviendo en X: "); Serial.print(deltaX_steps);
-  Serial.print(", Y: "); Serial.print(deltaY_steps); Serial.println(" pasos.");
+  // Serial.print("    (CoreXY) Moviendo en X: "); Serial.print(deltaX_steps);
+  // Serial.print(", Y: "); Serial.print(deltaY_steps); Serial.print(" pasos.");
  
   if (deltaX_steps != 0) motorX.step(deltaX_steps);
   if (deltaY_steps != 0) motorY.step(deltaY_steps);
@@ -447,16 +481,17 @@ void moveXY_steps(int deltaX_steps, int deltaY_steps) {
 // DEBES IMPLEMENTAR LA LÓGICA REAL DE ROTACIÓN AQUÍ.
 // 'direction' puede ser +1 para derecha, -1 para izquierda.
 void rotateRobot(int direction) {
-  Serial.print("    Rotando robot ");
-  if (direction == 1) Serial.println("a la DERECHA.");
-  else Serial.println("a la IZQUIERDA.");
+  // Serial.print("    Rotando robot ");
+  // if (direction == 1) Serial.print("a la DERECHA.");
+  // else Serial.println("a la IZQUIERDA.");
 }
 
 // --- FUNCIONES DE ACCIÓN (PLACEHOLDERS) ---
 
 void playMelody1() {
-  Serial.println("    (Placeholder) Reproduciendo Melodia 1...");
+  Serial.print("    (Placeholder) Reproduciendo Melodia 1...");
   // Aquí iría el código para reproducir la Melodia 1 (ej. con un buzzer, Tone.h)
 }
+
 
 
