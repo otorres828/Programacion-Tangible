@@ -108,7 +108,7 @@ void loop() {
 
   // Leer todas las columnas y guardar en el array
   // Esta sección se ejecuta solo una vez al inicio o hasta que se presione el botón
-  
+
   // si 'secuenciaLista' es falsa.
   if (!secuenciaLista) {
     leerTodasColumnas(); // Llama a la función para solicitar datos a los esclavos
@@ -175,10 +175,10 @@ void leerTodasColumnas() {
         allResistances[globalIndex] = fb.f;
       } else {
         // Manejo de error si no se recibieron suficientes bytes para un float completo
-        Serial.print("ERROR: No se recibieron suficientes bytes de 0x");
-        Serial.print(slaveAddress, HEX);
-        Serial.print(" para la resistencia ");
-        Serial.println(i + 1);
+        // Serial.print("ERROR: No se recibieron suficientes bytes de 0x");
+        // Serial.print(slaveAddress, HEX);
+        // Serial.print(" para la resistencia ");
+        // Serial.println(i + 1);
         allResistances[globalIndex] = -1; // Valor de error para indicar fallo en la lectura I2C
       }
     }
