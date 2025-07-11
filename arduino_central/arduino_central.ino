@@ -23,14 +23,14 @@ const int COLUMN_ADDRESSES[] = {0x01, 0x02, 0x03, 0x04};
 
 // Arrays para almacenar los datos
 float allResistances[16];                          // Almacena todas las 16 resistencias leídas 4 columnas * 4 resistencias = 16
-// float instruccionesColumnas[12];                  // Almacena las instrucciones de las primeras 3 columnas (12 posiciones)
-// float bloqueControl[4];                          // Almacena el bloque de control (última columna, 4 posiciones)
+float instruccionesColumnas[12];                  // Almacena las instrucciones de las primeras 3 columnas (12 posiciones)
+float bloqueControl[4];                          // Almacena el bloque de control (última columna, 4 posiciones)
 
 //avanza ->avanza -> g.derecha ->avanza -> negacion -> avanza -> bloque control
 //izquierda izquierda negacion izquierda
 
-float instruccionesColumnas[12] = {200, 200, 4000, 200, 20000, 200, 10000, -1, -1, -1, -1, -1};
-float bloqueControl[4] = {2000, 2000, 20000, 200};
+// float instruccionesColumnas[12] = {200, 200, 4000, 200, 20000, 200, 10000, -1, -1, -1, -1, -1};
+// float bloqueControl[4] = {2000, 2000, 20000, 200};
 
 
 // --- DEFINICIONES DE ACCIONES ---
@@ -105,38 +105,40 @@ void setup() {
 }
 
 void loop() {
-  // 1. Leer todas las columnas y guardar en el array
+
+  // Leer todas las columnas y guardar en el array
   // Esta sección se ejecuta solo una vez al inicio o hasta que se presione el botón
+  
   // si 'secuenciaLista' es falsa.
-  // if (!secuenciaLista) {
-  //   leerTodasColumnas(); // Llama a la función para solicitar datos a los esclavos
-  //   copiarArrays();     // Copia los valores leídos a los arrays de instrucciones y bloque de control
-  //   Serial.println("Instrucciones cargadas. Esperando botón...");
+  if (!secuenciaLista) {
+    leerTodasColumnas(); // Llama a la función para solicitar datos a los esclavos
+    copiarArrays();     // Copia los valores leídos a los arrays de instrucciones y bloque de control
+    Serial.println("Instrucciones cargadas. Esperando botón...");
 
-  //   // Imprimir todos los valores leídos para verificación en el Monitor Serial
-  //   Serial.println("Valores de todas las resistencias leídas:");
-  //   for (int i = 0; i < 16; i++) {
-  //     Serial.print(" (Columna ");
-  //     Serial.print((i / 4) + 1); // Calcula la columna
-  //     Serial.print(", Rx ");
-  //     Serial.print((i % 4) + 1); // Calcula el Rx dentro de la columna
-  //     Serial.print("): ");
+    // Imprimir todos los valores leídos para verificación en el Monitor Serial
+    Serial.println("Valores de todas las resistencias leídas:");
+    for (int i = 0; i < 16; i++) {
+      Serial.print(" (Columna ");
+      Serial.print((i / 4) + 1); // Calcula la columna
+      Serial.print(", Rx ");
+      Serial.print((i % 4) + 1); // Calcula el Rx dentro de la columna
+      Serial.print("): ");
 
-  //     Serial.print(": ");
-  //     // Formatear la salida para mayor legibilidad (Ohms, kOhms, MOhms)
-  //     if (allResistances[i] < 0) {
-  //       Serial.println("CORTO / Valor Invalido");
-  //     } else if (allResistances[i] >= 1000.0) {
-  //       Serial.print(allResistances[i] / 1000.0, 2);
-  //       Serial.println(" kOhms");
-  //     } else {
-  //       Serial.print(allResistances[i], 2);
-  //       Serial.println(" Ohms");
-  //     }
-  //   }
-  //   Serial.println("----------------------------------");
-  //   delay(1000); // Pequeña pausa para que no se sature el serial
-  // }
+      Serial.print(": ");
+      // Formatear la salida para mayor legibilidad (Ohms, kOhms, MOhms)
+      if (allResistances[i] < 0) {
+        Serial.println("CORTO / Valor Invalido");
+      } else if (allResistances[i] >= 1000.0) {
+        Serial.print(allResistances[i] / 1000.0, 2);
+        Serial.println(" kOhms");
+      } else {
+        Serial.print(allResistances[i], 2);
+        Serial.println(" Ohms");
+      }
+    }
+    Serial.println("----------------------------------");
+    delay(1000); // Pequeña pausa para que no se sature el serial
+  }
                         
   // 2. Si se presiona el botón, ejecutar secuencia
   // digitalRead(BOTON_INICIO) == LOW porque se usa INPUT_PULLUP (botón a GND)
@@ -466,9 +468,7 @@ void printRobotState() {
   }
 }
 
-// Placeholder para el movimiento CoreXY.
-// DEBES IMPLEMENTAR LA CINEMÁTICA REAL DE COREXY AQUÍ.
-// deltaX_steps y deltaY_steps son los pasos netos que el robot debería moverse en X e Y.
+// mover eje en sentido XY.
 void moveXY_steps(int deltaX_steps, int deltaY_steps) {
   // Serial.print("    (CoreXY) Moviendo en X: "); Serial.print(deltaX_steps);
   // Serial.print(", Y: "); Serial.print(deltaY_steps); Serial.print(" pasos.");
@@ -477,17 +477,14 @@ void moveXY_steps(int deltaX_steps, int deltaY_steps) {
   if (deltaY_steps != 0) motorY.step(deltaY_steps);
 }
 
-// Placeholder para la rotación del robot.
-// DEBES IMPLEMENTAR LA LÓGICA REAL DE ROTACIÓN AQUÍ.
-// 'direction' puede ser +1 para derecha, -1 para izquierda.
+// rotacion sobre el mismo eje.
 void rotateRobot(int direction) {
   // Serial.print("    Rotando robot ");
   // if (direction == 1) Serial.print("a la DERECHA.");
   // else Serial.println("a la IZQUIERDA.");
 }
 
-// --- FUNCIONES DE ACCIÓN (PLACEHOLDERS) ---
-
+// sonar melodia
 void playMelody1() {
   Serial.print("    (Placeholder) Reproduciendo Melodia 1...");
   // Aquí iría el código para reproducir la Melodia 1 (ej. con un buzzer, Tone.h)
