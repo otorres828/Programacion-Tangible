@@ -41,10 +41,10 @@ float measuredResistances[5];  // Array para guardar Rx1, Rx2, Rx3, Rx4, Rx5
 #define ledPin5 6  // D6 para Rx5 (Corregido: era D5 en el comentario original, ahora D6)
 
 // --- UNIÓN PARA CONVERTIR FLOAT A BYTES Y VICEVERSA ---
-// Un float ocupa 4 bytes.
+// Esto es necesario porque Wire.write() y Wire.read() operan con bytes.
 union FloatBytes {
   float f;
-  byte b[4];  // Corregido: Un float ocupa 4 bytes, no 5
+  byte b[4]; // Un float ocupa 4 bytes
 };
 
 
@@ -101,65 +101,59 @@ float getAverageVoltage(int analogPinToMeasure) {
   return sumVoltage / 10.0;
 }
 
-// Obtiene el valor de la resistencia
-// Corregido: v_out es Vout, v_in es Vin
-float getResistanceValue(float v_out, float v_in) {
+//Obtiene el valor de la resustencia
+float getResistanceValue(float v2, float v1) {
 
   // Manejo de casos especiales para evitar divisiones por cero o resultados erróneos.
-  if (v_in < 0.01) {  // Si Vin es muy bajo, la fuente no está conectada o hay un error.
-    return -1.0;      // Código de error: Vin inválido
+  if (v1 < 0.01) { // Si Vin es muy bajo, la fuente no está conectada o hay un error.
+    return -1.0; // Código de error: Vin inválido
   }
 
-  // Si (Vin - Vout) es casi cero, significa que Vout ~ Vin, lo que implica que Rx es muy pequeña o un cortocircuito.
-  if ((v_in - v_out) < 0.001) {
-    return -2.0;  // Código de error: Corto Circuito / Valor Inválido
+  if ((v1 - v2) < 0.001) { // Si (Vin - Vout) es casi cero, significa que Vout ~ Vin,
+                           // lo que implica que Rx es muy pequeña o un cortocircuito.
+    return -2.0; // Código de error: Corto Circuito / Valor Inválido
   }
 
-  // Si Vout es casi cero, Rx es extremadamente grande (circuito abierto).
-  if (v_out < 0.001) {
-    return -999.0;  // Código de error: Circuito Abierto
+  if (v2 < 0.001) { // Si Vout es casi cero, Rx es extremadamente grande (circuito abierto).
+    return -999.0; // Código de error: Circuito Abierto
   }
 
   // Fórmula para calcular Rx: Rx = R1 * (Vout / (Vin - Vout))
-  float resistance = (v_out * RC) / (v_in - v_out);
+  float resistance = (v2 * RC) / (v1 - v2);
 
-  if (resistance > 60000.0) {  // Si la resistencia calculada es mayor a 60kOhm, se considera muy alta / abierto.
-    return -999.0;             // Usar el mismo código de "Circuito Abierto" para valores extremadamente altos
+  if(resistance > 60000.0) { // Si la resistencia calculada es mayor a 60kOhm, se considera un error.
+    return -3.0; // Código de error: Corto Circuito / Valor Inválido
   }
 
   return resistance;
 }
 
-// Imprime el valor de las resistencias y controla el LED asociado
-void printResistance(float resistance, int rxNumber, int ledPin) {
+//Imprime el valor de las resistencias
+void printResistance(float resistance, int rxNumber,int ledPin) {
+
   Serial.print("Rx");
   Serial.print(rxNumber);
   Serial.print(": ");
 
-  // Apagar el LED al inicio de cada evaluación para una nueva lectura
+  // Apagar el LED al inicio de cada evaluación
   digitalWrite(ledPin, LOW);
 
-  if (resistance == -999.0) {
-    Serial.println("ABIERTO / Muy Alta");
-  } else if (resistance == -1.0) {
-    Serial.println("ERROR - Vin no detectado");
-  } else if (resistance == -2.0 || resistance < 0) {  // Incluye cualquier valor negativo como error/corto
+   if (resistance == -2.0 || resistance < -3.0 || resistance < 0) { // Incluye negativos por ruido
     Serial.println("CORTO / Valor Invalido");
   } else {
+
     // Valor válido, encender el LED
     digitalWrite(ledPin, HIGH);
 
     // Formatear la resistencia para mostrar en Ohms, kOhms o MOhms
-    if (resistance >= 1000000.0) {  // Mayor o igual a 1 MOhms
-      Serial.print(resistance / 1000000.0, 2);
-      Serial.println(" MOhms");
-    } else if (resistance >= 1000.0) {  // Mayor o igual a 1 kOhms
+      if (resistance >= 1000.0) { // Mayor o igual a 1 kOhms
       Serial.print(resistance / 1000.0, 2);
       Serial.println(" kOhms");
-    } else {  // Menor de 1 kOhms
+      } else { // Menor de 1 kOhms
       Serial.print(resistance, 2);
       Serial.println(" Ohms");
     }
+    
   }
 }
 
@@ -170,14 +164,15 @@ void requestEvent() {
   for (int i = 0; i < 5; i++) {
     FloatBytes fb;
 
+    //nos aseguramos que solo mandemos isntancias válidas
     // Si la resistencia medida es válida (mayor que 0), enviamos su valor
-    // De lo contrario, enviamos -1.0 como un valor de error genérico.
-    if (measuredResistances[i] > 0) {
+    if(measuredResistances[i]>0){
       fb.f = measuredResistances[i];
-    } else {
-      fb.f = -1.0;  // Enviamos -1.0 para cualquier tipo de error (ABIERTO, CORTO, Vin inválido)
+    }else{
+      // Si es -999.0, -1.0, -2.0 o -3.0,  Enviamos -1 como valor de error si la resistencia no es válida  
+      fb.f = -1; 
     }
-    Wire.write(fb.b, 4);  // Corregido: Envía los 4 bytes de cada float
+    Wire.write(fb.b, 4); // Envía los 4 bytes de cada float
   }
 }
 
