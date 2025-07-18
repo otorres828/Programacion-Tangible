@@ -174,11 +174,7 @@ void leerTodasColumnas() {
         // Almacena el float reconstruido en el array principal
         allResistances[globalIndex] = fb.f;
       } else {
-        // Manejo de error si no se recibieron suficientes bytes para un float completo
-        // Serial.print("ERROR: No se recibieron suficientes bytes de 0x");
-        // Serial.print(slaveAddress, HEX);
-        // Serial.print(" para la resistencia ");
-        // Serial.println(i + 1);
+       
         allResistances[globalIndex] = -1; // Valor de error para indicar fallo en la lectura I2C
       }
     }
@@ -313,7 +309,7 @@ void performAction(ActionType action, int globalIndex, float resistanceValue) {
           robotX = nextX; // Actualiza la posición del robot
           robotY = nextY;
         } else {
-          Serial.println("    IGNORADO: Limite de tablero alcanzado.");
+          Serial.print("    IGNORADO: Limite de tablero alcanzado.");
         }
       // 
   }
@@ -372,7 +368,7 @@ void performAction(ActionType action, int globalIndex, float resistanceValue) {
       playMelody1();
   }
   else{
-      Serial.println("NINGUNA / DESCONOCIDA (No ejecutar accion)");
+      Serial.print("NINGUNA / DESCONOCIDA (No ejecutar accion)");
   }
   
   printRobotState(); // Imprime el estado del robot DESPUÉS de la acción
@@ -449,7 +445,7 @@ void executeBlockControlLogicInternal() {
 
 // Verifica si una posición (x, y) está dentro de los límites de la cuadrícula.
 bool isValidPosition(int x, int y) {
-  int GRID_SIZE = 6; // Cuadrícula de 6x6
+  int GRID_SIZE = 5; // Cuadrícula de 5x5
   return x >= 0 && x < GRID_SIZE && y >= 0 && y < GRID_SIZE;
 }
 
