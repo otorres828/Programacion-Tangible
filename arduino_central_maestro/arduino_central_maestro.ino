@@ -21,9 +21,9 @@ SoftwareSerial mySerial(10, 11); // RX, TX
 const int SLAVE_ADDRESSES[] = {0x01, 0x02, 0x03};
 
 // Arrays para almacenar los datos
-float allResistances[14];         // Almacena todas las 14 resistencias leídas
+float allResistances[15];         // Almacena todas las 15 resistencias leídas
 float instruccionesColumnas[10];  // Las primeras 10 instrucciones (de las 2 columnas)
-float bloqueControl[5];           // El bloque de control (las últimas 4 posiciones)
+float bloqueControl[5];           // El bloque de control (las últimas 5 posiciones)
 
 // --- DEFINICIONES DE ACCIONES ---
 enum ActionType {
@@ -54,7 +54,6 @@ const int GRID_SIZE = 5;  // Cuadrícula de 5x5 (0 a 4)
 void leerTodasColumnas();
 void copiarArrays();
 void ejecutarSecuencia();
-ActionType mapResistanceToAction(float resistanceValue);
 ActionType getInvertedAction(ActionType originalAction);
 void performAction(ActionType action, int globalIndex, float resistanceValue);
 void executeBlockControlLogicInternal();
@@ -92,24 +91,6 @@ void loop() {
     copiarArrays();       // Copia los valores leídos a los arrays de instrucciones y bloque de control
     //Serial.println("Instrucciones cargadas. Esperando botón...");
 
-    // Imprimir todos los valores leídos para verificación en el Monitor Serial
-    //Serial.println("Valores de todas las resistencias leídas:");
-    for (int i = 0; i < 15; i++) {  // Ahora es 15 para allResistances
-      //Serial.print(" (Resistencia ");
-      //Serial.print(i + 1);
-      //Serial.print("): ");
-
-      // Formatear la salida para mayor legibilidad (Ohms, kOhms, MOhms)
-      if (allResistances[i] < 0) {
-        //Serial.println("CORTO / Valor Invalido");
-      } else if (allResistances[i] >= 1000.0) {
-        //Serial.print(allResistances[i] / 1000.0, 2);
-        //Serial.println(" kOhms");
-      } else {
-        //Serial.print(allResistances[i], 2);
-        //Serial.println(" Ohms");
-      }
-    }
     //Serial.println("----------------------------------");
     delay(1000);  // Pequeña pausa para que no se sature el serial
 
@@ -121,7 +102,7 @@ void loop() {
     secuenciaLista = true;
     //Serial.println("\nBoton de inicio presionado. Ejecutando secuencia...");
     ejecutarSecuencia();
-    secuenciaLista = false; // Descomentar si quieres reiniciar la secuencia al presionar de nuevo
+    // secuenciaLista = false; // Descomentar si quieres reiniciar la secuencia al presionar de nuevo
   }
   
 }
@@ -209,37 +190,35 @@ void ejecutarSecuencia() {
 
   // Recorre las 10 instrucciones principales
   for (int i = 0; i < 10; i++) {  // Ahora son 10 instrucciones principales
-    float resistenciaActual = instruccionesColumnas[i];
+
+    int instruccionActual = instruccionesColumnas[i];
 
     // Solo ejecutamos resistencias validas (positivas)
-    if (resistenciaActual > 0) {
-      ActionType action = mapResistanceToAction(resistenciaActual);  // Mapea la resistencia a un tipo de acción
+    if (instruccionActual > 0) {
 
       // --- Lógica de Negación ---
       if (negacionActiva) {
         negacionActiva = false;  // Desactiva la negación para la siguiente instrucción
 
         // Si la siguiente instrucción es no-invertible, se omite.
-        if (action == NEGACION || action == BLOQUE_CONTROL || action == MELODIA_1 || action <= 0) {  // Incluye 0 y -1 para errores
-          //Serial.println(" -> Negacion: Instruccion no invertible o de error. Omitir Instruccion.");
+        if (instruccionActual == NEGACION || instruccionActual == BLOQUE_CONTROL || instruccionActual == MELODIA_1 || instruccionActual <= 0) {  // Incluye 0 y -1 para errores
           // No se llama a performAction ni se ejecuta nada, simplemente se omite.
         } else {
           // Si es invertible, se ejecuta la acción invertida
-          //Serial.println(" -> Negacion: Invirtiendo la siguiente instruccion.");
-          performAction(getInvertedAction(action), i, resistenciaActual);
+          performAction(getInvertedAction(instruccionActual), i, instruccionActual);
         }
       }
       // --- Fin Lógica de Negación ---
       else {  // Si la negación NO está activa
-        if (action == NEGACION) {
+        if (instruccionActual == NEGACION) {
           negacionActiva = true;  // Activa la negación para la PRÓXIMA instrucción
           //Serial.println(" -> Negacion activada. La proxima instruccion sera invertida.");
-        } else if (action == BLOQUE_CONTROL) {
+        } else if (instruccionActual == BLOQUE_CONTROL) {
           //Serial.println(" -> Accion: BLOQUE DE CONTROL (Ejecutar logica de bloque de control)");
           executeBlockControlLogicInternal();  // Llama a la función que maneja el bloque de control
         } else {
           // Para todas las demás acciones, ejecutar normalmente (incluidos los errores que no son negación)
-          performAction(action, i, resistenciaActual);
+          performAction(instruccionActual, i, instruccionActual);
         }
       }
        
@@ -248,47 +227,15 @@ void ejecutarSecuencia() {
   //Serial.println("Fin de instrucciones principales.");
 }
 
-// Mapea un valor de resistencia a un tipo de acción (no ejecuta, solo clasifica).
-ActionType mapResistanceToAction(float resistanceValue) {
-  if (resistanceValue >= 50.0 && resistanceValue <= 220.0) {
-    return MOVER_ARRIBA;
-  } else if (resistanceValue >= 850.0 && resistanceValue <= 1100.0) {
-    return MOVER_ABAJO;
-  } else if (resistanceValue >= 1500.0 && resistanceValue <= 2500.0) {
-    return MOVER_IZQUIERDA;
-  } else if (resistanceValue >= 3500.0 && resistanceValue <= 4800.0) {
-    return MOVER_DERECHA;
-  } else if (resistanceValue >= 9000.0 && resistanceValue <= 11000.0) {
-    return BLOQUE_CONTROL;
-  } else if (resistanceValue >= 19000.0 && resistanceValue <= 21000.0) {
-    return NEGACION;
-  } else if (resistanceValue >= 5000.0 && resistanceValue <= 6000.0) {
-    return MELODIA_1;
-  }
-  // Manejo de errores o valores fuera de rango
-  else if (resistanceValue <= 0) {
-    return (ActionType)-1;  // Valor de error para indicar corto/valor inválido
-  } else {
-    return (ActionType)0;  // Si es un valor positivo pero no cae en ningún rango definido
-  }
-}
-
 // Ejecuta una acción específica basada en el ActionType.
 void performAction(ActionType action, int globalIndex, float resistanceValue) {
   //Serial.print(" Accion -> ");
   //Serial.print(action);
   //Serial.print(" de la ");
 
-  Serial.print(" Resistencia ");
+  Serial.print("Instruccion ");
   Serial.print(globalIndex + 1);
   Serial.print(": ");
-  if (resistanceValue >= 1000.0) {
-    Serial.print(resistanceValue / 1000.0, 2);
-    Serial.print(" kOhms -> ");
-  } else {
-    Serial.print(resistanceValue, 2);
-    Serial.print(" Ohms -> ");
-  }
 
   int nextX = robotX;
   int nextY = robotY;
@@ -358,10 +305,10 @@ void executeBlockControlLogicInternal() {
   bool negacionActiva = false;
 
   for (int i = 0; i < 4; i++) {
-    float controlResistencia = bloqueControl[i];
+    int controlResistencia = bloqueControl[i];
 
     if (controlResistencia > 0) {
-      ActionType controlAction = mapResistanceToAction(controlResistencia);
+      int controlAction = controlResistencia;
 
       // Si la instrucción del bloque de control es BLOQUE_CONTROL, la omitimos para evitar un bucle infinito.
       if (controlAction == BLOQUE_CONTROL) {

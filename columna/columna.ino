@@ -32,6 +32,7 @@
 const float ADC_REFERENCE_VOLTAGE = 3.3;  // Voltaje de referencia del ADC del Arduino
 
 float measuredResistances[5];  // Array para guardar Rx1, Rx2, Rx3, Rx4, Rx5
+float valueInstruction[5];   // Array el valor de las instrucciones
 
 // Pines digitales para los LEDs de cada resistencia
 #define ledPin1 2  // D2 para Rx1
@@ -45,6 +46,18 @@ float measuredResistances[5];  // Array para guardar Rx1, Rx2, Rx3, Rx4, Rx5
 union FloatBytes {
   float f;
   byte b[4]; // Un float ocupa 4 bytes
+};
+
+
+// --- DEFINICIONES DE ACCIONES ---
+enum ActionType {
+  MOVER_ARRIBA = 1,     // Resistencia 190-220 Ohms
+  MOVER_ABAJO = 2,      // Resistencia 850-1100 Ohms
+  MOVER_IZQUIERDA = 3,  // Resistencia 1.5k-2.5k Ohms
+  MOVER_DERECHA = 4,    // Resistencia 3.5k-4.5k Ohms
+  BLOQUE_CONTROL = 5,   // Resistencia 9k-11k Ohms (no invertible)
+  NEGACION = 6,         // Resistencia 19k-21k Ohms (no invertible)
+  MELODIA_1 = 7,        // Resistencia 5k-6k Ohms (no invertible)
 };
 
 
@@ -146,14 +159,54 @@ void printResistance(float resistance, int rxNumber,int ledPin) {
     digitalWrite(ledPin, HIGH);
 
     // Formatear la resistencia para mostrar en Ohms, kOhms o MOhms
-      if (resistance >= 1000.0) { // Mayor o igual a 1 kOhms
+    if (resistance >= 1000.0) { // Mayor o igual a 1 kOhms
       Serial.print(resistance / 1000.0, 2);
       Serial.println(" kOhms");
-      } else { // Menor de 1 kOhms
+    } else { // Menor de 1 kOhms
       Serial.print(resistance, 2);
       Serial.println(" Ohms");
     }
     
+  }
+}
+
+//obtiene el valor de cada instruccion
+void getValorInstruction(){
+
+  for (int i = 0; i < 5; i++) {
+   
+    if(measuredResistances[i]>0){
+      ActionType action = mapResistanceToAction(measuredResistances[i]);  // Mapea la resistencia a un tipo de acción
+      valueInstruction[i] = action;
+    }else{
+      valueInstruction[i] = -1;
+    }
+    
+  }
+}
+
+// Mapea un valor de resistencia a un tipo de acción (no ejecuta, solo clasifica).
+ActionType mapResistanceToAction(float resistanceValue) {
+  if (resistanceValue >= 50.0 && resistanceValue <= 220.0) {
+    return MOVER_ARRIBA;
+  } else if (resistanceValue >= 850.0 && resistanceValue <= 1100.0) {
+    return MOVER_ABAJO;
+  } else if (resistanceValue >= 1500.0 && resistanceValue <= 2500.0) {
+    return MOVER_IZQUIERDA;
+  } else if (resistanceValue >= 3500.0 && resistanceValue <= 4800.0) {
+    return MOVER_DERECHA;
+  } else if (resistanceValue >= 9000.0 && resistanceValue <= 11000.0) {
+    return BLOQUE_CONTROL;
+  } else if (resistanceValue >= 19000.0 && resistanceValue <= 21000.0) {
+    return NEGACION;
+  } else if (resistanceValue >= 5000.0 && resistanceValue <= 6000.0) {
+    return MELODIA_1;
+  }
+  // Manejo de errores o valores fuera de rango
+  else if (resistanceValue <= 0) {
+    return (ActionType)-1;  // Valor de error para indicar corto/valor inválido
+  } else {
+    return (ActionType)0;  // Si es un valor positivo pero no cae en ningún rango definido
   }
 }
 
@@ -166,8 +219,8 @@ void requestEvent() {
 
     //nos aseguramos que solo mandemos isntancias válidas
     // Si la resistencia medida es válida (mayor que 0), enviamos su valor
-    if(measuredResistances[i]>0){
-      fb.f = measuredResistances[i];
+    if(valueInstruction[i]>0){
+      fb.f = valueInstruction[i];
     }else{
       // Si es -999.0, -1.0, -2.0 o -3.0,  Enviamos -1 como valor de error si la resistencia no es válida  
       fb.f = -1; 
@@ -210,6 +263,8 @@ void loop() {
   float avgDividerVoltage_Rx5 = getAverageVoltage(dividerInput5);
   measuredResistances[4] = getResistanceValue(avgDividerVoltage_Rx5, avgInputVoltage);  // v_out, v_in
   printResistance(measuredResistances[4], 5, ledPin5);                                  // Corregido: Usar ledPin5
+
+  getValorInstruction();
 
   delay(1000);  // Espera 1 segundo antes de la siguiente ronda de mediciones
 }
