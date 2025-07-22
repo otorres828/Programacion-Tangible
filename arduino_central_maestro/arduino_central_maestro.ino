@@ -1,18 +1,15 @@
 // ---------------------------------------------------------------------------------------
 // Código para Arduino Nano Central (MAESTRO I2C) - Archivo Único
 // Solicita datos de 2 Arduinos de columna (Esclavos I2C, 5 resistencias cada uno)
-// y un tercer Arduino (Esclavo I2C, Bloque de Control de 4 resistencias).
-// Consolida los valores de resistencia en un array de 14 posiciones.
-// Nota: Utilizamos A4 y A5 para la comunicacion I2C con cada columna.
-// El movimiento del robot ahora es en direcciones cardinales fijas (arriba, abajo, izquierda, derecha)
-// sin depender de una orientación interna del robot.
+// y un tercer Arduino (Esclavo I2C, Bloque de Control de 5 resistencias).
+// Consolida los valores de resistencia en un array de 15 posiciones.
+// Nota: Utilizamos A4 y A5 para la comunicacion I2C con cada columna y con los LEDS de cada ficha.
+// El movimiento del robot es en direcciones cardinales fijas (arriba, abajo, izquierda, derecha)
 // ---------------------------------------------------------------------------------------
 
 #include <Wire.h>                      // Librería para comunicación I2C
 #include <SoftwareSerial.h>           // Libreria para comunicacion Bluetooth
 #include <Adafruit_PWMServoDriver.h> // Librería para el PCA9685
-
-// --- DEFINICIONES DE PINES Y CONSTANTES GLOBALES ---
 
 #define BOTON_INICIO 2            // Pin del botón (con resistencia pull-up)
 
@@ -37,7 +34,7 @@ enum ActionType {
   MELODIA_1 = 7,        // Resistencia 5k-6k Ohms (no invertible)
 };
 
-// Variables de control de secuencia
+// Variable de control de secuencia
 bool secuenciaLista = false;
 
 // --- UNIÓN PARA CONVERTIR FLOAT A BYTES Y VICEVERSA ---
@@ -50,8 +47,7 @@ union FloatBytes {
 int robotX = 0;           // Posición actual en X (columna de la cuadrícula 0-4)
 int robotY = 0;           // Posición actual en Y (fila de la cuadrícula 0-4)
 
-
-// Crea un objeto PCA9685 , con Direccion para comunicacion I2C con el driver Pca9685 que controlara los LEDS de las instrucciones
+// Crea un objeto PCA9685 , con Direccion 0x40 para comunicacion I2C con el driver Pca9685 que controlara los LEDS de las instrucciones
 Adafruit_PWMServoDriver pwm = Adafruit_PWMServoDriver("0x40");
 
 // Define el número total de LEDs que vas a controlar
@@ -62,7 +58,6 @@ const int NUM_LEDS = 15;
 const int BRIGHTNESS_OFF = 0;       // LED apagado
 const int BRIGHTNESS_20_PERCENT = 4095 * 0.20; // Aproximadamente 819
 const int BRIGHTNESS_100_PERCENT = 4095; // LED al máximo brillo
-
 
 // --- DECLARACIÓN DE FUNCIONES---
 void leerTodasColumnas();
@@ -148,7 +143,7 @@ void loop() {
 
 // Lee los datos de los 3 esclavos I2C y llena el array 'allResistances'
 void leerTodasColumnas() {
-  //Serial.println("Solicitando datos a los esclavos I2C...");
+
   int currentGlobalIndex = 0;  // Para llevar el control de la posición en allResistances
 
   // 1. Leer de los dos primeros esclavos (columnas), cada uno con 5 resistencias
@@ -157,7 +152,6 @@ void leerTodasColumnas() {
     
     int floatsToRequest = 5;     
 
-    
     int bytesToRequest = floatsToRequest * sizeof(float);  // 5 floats * 4 bytes/float = 20 bytes
 
     Serial.print("Solicitando ");
@@ -221,6 +215,7 @@ void copiarArrays() {
 
 // Ejecuta la secuencia de acciones basada en los valores de instruccionesColumnas.
 void ejecutarSecuencia() {
+
   //Serial.println("Iniciando ejecucion de instrucciones...");
 
   bool negacionActiva = false;  // Flag para controlar si la negación está activa
@@ -261,7 +256,9 @@ void ejecutarSecuencia() {
        
     }
   }
+
   //Serial.println("Fin de instrucciones principales.");
+
 }
 
 // Ejecuta una acción específica basada en el ActionType.
@@ -309,6 +306,7 @@ void performAction(ActionType action, int globalIndex) {
       robotY = nextY;
     }
   }
+
   mySerial.println(action);
   delay(1000);
   Serial.println(); 
@@ -323,6 +321,7 @@ void performAction(ActionType action, int globalIndex) {
        setLedBrightness(globalIndex, BRIGHTNESS_OFF); // Si la ficha fue quitada, apagar completamente
     }
   }
+  
 }
 
 // Obtiene la acción invertida para una acción dada.
