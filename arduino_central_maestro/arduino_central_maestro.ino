@@ -8,12 +8,13 @@
 // sin depender de una orientación interna del robot.
 // ---------------------------------------------------------------------------------------
 
-#include <Wire.h>  // Librería para comunicación I2C
-#include <SoftwareSerial.h>
+#include <Wire.h>                      // Librería para comunicación I2C
+#include <SoftwareSerial.h>           // Libreria para comunicacion Bluetooth
+#include <Adafruit_PWMServoDriver.h> // Librería para el PCA9685
 
 // --- DEFINICIONES DE PINES Y CONSTANTES GLOBALES ---
 
-#define BOTON_INICIO 2  // Pin del botón (con resistencia pull-up)
+#define BOTON_INICIO 2            // Pin del botón (con resistencia pull-up)
 
 SoftwareSerial mySerial(10, 11); // RX, TX
 
@@ -49,6 +50,20 @@ union FloatBytes {
 int robotX = 0;           // Posición actual en X (columna de la cuadrícula 0-4)
 int robotY = 0;           // Posición actual en Y (fila de la cuadrícula 0-4)
 
+
+// Crea un objeto PCA9685 , con Direccion para comunicacion I2C con el driver Pca9685 que controlara los LEDS de las instrucciones
+Adafruit_PWMServoDriver pwm = Adafruit_PWMServoDriver("0x40");
+
+// Define el número total de LEDs que vas a controlar
+const int NUM_LEDS = 15;
+
+// Define los valores de brillo (PWM)
+// El PCA9685 tiene una resolución de 12 bits, lo que significa un rango de 0 a 4095.
+const int BRIGHTNESS_OFF = 0;       // LED apagado
+const int BRIGHTNESS_20_PERCENT = 4095 * 0.20; // Aproximadamente 819
+const int BRIGHTNESS_100_PERCENT = 4095; // LED al máximo brillo
+
+
 // --- DECLARACIÓN DE FUNCIONES---
 void leerTodasColumnas();
 void copiarArrays();
@@ -56,8 +71,8 @@ void ejecutarSecuencia();
 ActionType getInvertedAction(ActionType originalAction);
 void performAction(ActionType action, int globalIndex);
 void executeBlockControlLogicInternal();
-
-// Funciones de movimiento y auxiliares del robot
+String getAction(ActionType action);
+void setLedBrightness(int ledIndex, int brightness);
 bool isValidPosition(int x, int y);
 
 void setup() {
@@ -69,6 +84,17 @@ void setup() {
   }
 
   Wire.begin();        // Inicia la comunicación I2C como Maestro
+
+  // Inicia el PCA9685 y la comunicación I2C.
+  pwm.begin();
+
+  // Establece la frecuencia PWM. 1000 Hz ,
+  pwm.setPWMFreq(1000);
+
+  // Todos los leds los colocamos apagados al inicio
+  for (int i = 0; i < NUM_LEDS; i++) {
+    pwm.setPWM(i, 0, BRIGHTNESS_OFF); // Canal i, ON_time = 0, OFF_time = BRIGHTNESS_OFF
+  }
 
   pinMode(BOTON_INICIO, INPUT_PULLUP);  // Configura el pin del botón con resistencia pull-up interna
 
@@ -86,9 +112,17 @@ void loop() {
   if (!secuenciaLista) {
     leerTodasColumnas();  // Llama a la función para solicitar datos a los esclavos
     copiarArrays();       // Copia los valores leídos a los arrays de instrucciones y bloque de control
-    //Serial.println("Instrucciones cargadas. Esperando botón...");
 
-    //Serial.println("----------------------------------");
+    //Colocamos los Leds al 20% mientras no se inicie el recorrido
+    for (int i = 0; i < 15; i++) {
+      if (allResistances[i] > 0) { // Si la resistencia es válida (hay una ficha)
+        setLedBrightness(i, BRIGHTNESS_20_PERCENT); // Enciende el LED correspondiente al 20%
+      } else {
+        setLedBrightness(i, BRIGHTNESS_OFF); // Si no hay ficha o es inválida, asegúrate de que esté apagado
+      }
+    }
+    
+
     delay(1000);  // Pequeña pausa para que no se sature el serial
 
   }
@@ -99,7 +133,15 @@ void loop() {
     secuenciaLista = true;
     //Serial.println("\nBoton de inicio presionado. Ejecutando secuencia...");
     ejecutarSecuencia();
-    secuenciaLista = false; // Descomentar si quieres reiniciar la secuencia al presionar de nuevo
+    // secuenciaLista = false; // Descomentar si quieres reiniciar la secuencia al presionar de nuevo
+    // Vuelve a recorrer y poner los LEDs al 20% para las fichas presentes
+    for (int i = 0; i < 15; i++) {
+      if (allResistances[i] > 0) {
+        setLedBrightness(i, BRIGHTNESS_20_PERCENT);
+      } else {
+        setLedBrightness(i, BRIGHTNESS_OFF); // Asegúrate de apagar los que no tienen ficha
+      }
+    }
   }
   
 }
@@ -233,6 +275,10 @@ void performAction(ActionType action, int globalIndex) {
   int nextX = robotX;
   int nextY = robotY;
   
+  if (globalIndex >= 0 && globalIndex < NUM_LEDS) { // Asegura que el índice del LED es válido
+    setLedBrightness(globalIndex, BRIGHTNESS_100_PERCENT); //encendemos el led al 100%
+  }
+
   switch (action) {
     case MOVER_ARRIBA:
       nextY++;
@@ -265,7 +311,18 @@ void performAction(ActionType action, int globalIndex) {
   }
   mySerial.println(action);
   delay(1000);
-  Serial.println();  
+  Serial.println(); 
+  
+  // Bajar el brillo de los leds de nuevo al 20% después de ejecutar *****
+  if (globalIndex >= 0 && globalIndex < NUM_LEDS) {
+    // Si la ficha sigue presente (su resistencia es válida), vuelve al 20%.
+    // Si la ficha fue quitada (resistencia -1), se apagará en el próximo ciclo de lectura.
+    if (allResistances[globalIndex] > 0) { // Verifica si la ficha aún es considerada válida
+       setLedBrightness(globalIndex, BRIGHTNESS_20_PERCENT);
+    } else {
+       setLedBrightness(globalIndex, BRIGHTNESS_OFF); // Si la ficha fue quitada, apagar completamente
+    }
+  }
 }
 
 // Obtiene la acción invertida para una acción dada.
@@ -324,40 +381,38 @@ void executeBlockControlLogicInternal() {
   }
 }
 
-
 // Verifica si una posición (x, y) está dentro de los límites de la cuadrícula.
 bool isValidPosition(int x, int y) {
   int GRID_SIZE = 5;
   return x >= 0 && x < GRID_SIZE && y >= 0 && y < GRID_SIZE;
 }
 
-
-string getAction(action){
+//Devuelve el tipo de accion
+String getAction(ActionType action){
 
   switch (action) {
     case MOVER_ARRIBA:
-      return "Avanzar"
-      break;
+      return "Avanzar";
     case MOVER_ABAJO:
       return "Retroceder";
-      break;
     case MOVER_IZQUIERDA:
       return "Izquierda";
-      break;
     case MOVER_DERECHA:
       return "Derecha";
-      break;
     case BLOQUE_CONTROL:
       return "Bloque Control";
-      break;
     case NEGACION:
       return "Negacion";
-      break;
     case MELODIA_1:
       return "Melodia";
-      break;
     default:
       return "Ninguna instruccion";
-      break;
+  }
+}
+
+//  controla el brillo de un LED en el PCA9685 
+void setLedBrightness(int ledIndex, int brightness) {
+  if (ledIndex >= 0 && ledIndex < NUM_LEDS) {
+    pwm.setPWM(ledIndex, 0, brightness);
   }
 }
