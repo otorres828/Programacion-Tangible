@@ -55,7 +55,7 @@ void leerTodasColumnas();
 void copiarArrays();
 void ejecutarSecuencia();
 ActionType getInvertedAction(ActionType originalAction);
-void performAction(ActionType action, int globalIndex, float resistanceValue);
+void performAction(ActionType action, int globalIndex);
 void executeBlockControlLogicInternal();
 
 // Funciones de movimiento y auxiliares del robot
@@ -102,7 +102,7 @@ void loop() {
     secuenciaLista = true;
     //Serial.println("\nBoton de inicio presionado. Ejecutando secuencia...");
     ejecutarSecuencia();
-    // secuenciaLista = false; // Descomentar si quieres reiniciar la secuencia al presionar de nuevo
+    secuenciaLista = false; // Descomentar si quieres reiniciar la secuencia al presionar de nuevo
   }
   
 }
@@ -148,20 +148,18 @@ void leerTodasColumnas() {
   int floatsToRequest = 5;                               // Envía 4 floats
   int bytesToRequest = floatsToRequest * sizeof(float);  // 5 floats * 4 bytes/float = 16 bytes
 
-  Serial.print("Solicitando ");
-  Serial.print(floatsToRequest);
-  Serial.print(" floats del esclavo Bloque de Control 0x");
-  Serial.println(blockControlSlaveAddress, HEX);
-
   Wire.requestFrom(blockControlSlaveAddress, bytesToRequest);
 
   FloatBytes fb;
   for (int i = 0; i < floatsToRequest; i++) {
     if (Wire.available() >= sizeof(float)) {
+      
       for (int j = 0; j < sizeof(float); j++) {
         fb.b[j] = Wire.read();
       }
+
       allResistances[currentGlobalIndex++] = fb.f;
+
     } else {
       
       allResistances[currentGlobalIndex++] = -1.0;
@@ -205,7 +203,7 @@ void ejecutarSecuencia() {
           // No se llama a performAction ni se ejecuta nada, simplemente se omite.
         } else {
           // Si es invertible, se ejecuta la acción invertida
-          performAction(getInvertedAction(instruccionActual), i, instruccionActual);
+          performAction(getInvertedAction(instruccionActual), i);
         }
       }
       // --- Fin Lógica de Negación ---
@@ -218,7 +216,7 @@ void ejecutarSecuencia() {
           executeBlockControlLogicInternal();  // Llama a la función que maneja el bloque de control
         } else {
           // Para todas las demás acciones, ejecutar normalmente (incluidos los errores que no son negación)
-          performAction(instruccionActual, i, instruccionActual);
+          performAction(instruccionActual, i);
         }
       }
        
@@ -228,48 +226,46 @@ void ejecutarSecuencia() {
 }
 
 // Ejecuta una acción específica basada en el ActionType.
-void performAction(ActionType action, int globalIndex, float resistanceValue) {
-  //Serial.print(" Accion -> ");
-  //Serial.print(action);
-  //Serial.print(" de la ");
-
+void performAction(ActionType action, int globalIndex) {
+  
   Serial.print("Instruccion ");
   Serial.print(globalIndex + 1);
   Serial.print(": ");
+  Serial.print(action);
 
   int nextX = robotX;
   int nextY = robotY;
   
-  switch (action) {
-    case MOVER_ARRIBA:
-      //Serial.print("MOVER ARRIBA (Mover motor hacia +Y)");
-      nextY++;
-      break;
-    case MOVER_ABAJO:
-      //Serial.print("MOVER ABAJO (Mover motor hacia -Y)");
-      nextY--;
-      break;
-    case MOVER_IZQUIERDA:
-      //Serial.print("MOVER IZQUIERDA (Mover motor hacia -X)");
-      nextX--;
-      break;
-    case MOVER_DERECHA:
-      //Serial.print("MOVER DERECHA (Mover motor hacia +X)");
-      nextX++;
-      break;
-    case BLOQUE_CONTROL:
-      //Serial.println("BLOQUE DE CONTROL (Ya manejado en ejecutarSecuencia)");
-      break;
-    case NEGACION:
-      //Serial.println("NEGACION (Ya manejado en ejecutarSecuencia)");
-      break;
-    case MELODIA_1:
-      //Serial.println("MELODIA 1 (Reproducir melodia 1)");
-      break;
-    default:
-      //Serial.print("NINGUNA / DESCONOCIDA (No ejecutar accion)");
-      break;
-  }
+  // switch (action) {
+  //   case MOVER_ARRIBA:
+  //     mySerial.println("Avanzar " + String(globalIndex +1));
+  //     nextY++;
+  //     break;
+  //   case MOVER_ABAJO:
+  //     mySerial.println("Retroceder  " + String(globalIndex +1));
+  //     nextY--;
+  //     break;
+  //   case MOVER_IZQUIERDA:
+  //     mySerial.println("Izquierda  " + String(globalIndex +1));
+  //     nextX--;
+  //     break;
+  //   case MOVER_DERECHA:
+  //     mySerial.println("Derecha  " + String(globalIndex +1));
+  //     nextX++;
+  //     break;
+  //   case BLOQUE_CONTROL:
+  //     mySerial.println("Bloque Control  " + String(globalIndex +1));
+  //     break;
+  //   case NEGACION:
+  //     mySerial.println("Negacion  " + String(globalIndex +1));
+  //     break;
+  //   case MELODIA_1:
+  //     mySerial.println("Melodia  " + String(globalIndex +1));
+  //     break;
+  //   default:
+  //     mySerial.println("Ninguna instruccion  " + String(globalIndex +1));
+  //     break;
+  // }
 
   // Solo intenta mover si la acción fue una de movimiento
   if (action == MOVER_ARRIBA || action == MOVER_ABAJO || action == MOVER_IZQUIERDA || action == MOVER_DERECHA) {
@@ -282,7 +278,7 @@ void performAction(ActionType action, int globalIndex, float resistanceValue) {
     }
   }
   mySerial.println(action);
-  delay(3000);// Pausa entre el procesamiento de cada resistencia (instrucción)
+  delay(1000);// Pausa entre el procesamiento de cada resistencia (instrucción)
   Serial.println();  // Salto de línea para la siguiente impresión
 }
 
@@ -324,7 +320,7 @@ void executeBlockControlLogicInternal() {
           } else {
             // Si es invertible, se ejecuta la acción invertida
             //Serial.println(" -> Negacion: Invirtiendo la siguiente instruccion.");
-            performAction(getInvertedAction(controlAction), i + 10, controlResistencia);  // Ajusta globalIndex para bloque de control
+            performAction(getInvertedAction(controlAction), i + 10);  // Ajusta globalIndex para bloque de control
           }
         }
         // --- Fin Lógica de Negación ---
@@ -334,7 +330,7 @@ void executeBlockControlLogicInternal() {
             //Serial.println(" -> Negacion activada. La proxima instruccion sera invertida.");
           } else {
             // Para todas las demás acciones, ejecutar normalmente
-            performAction(controlAction, i + 10, controlResistencia);  // Ajusta globalIndex
+            performAction(controlAction, i + 10);  // Ajusta globalIndex
           }
         }
       }

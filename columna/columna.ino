@@ -51,13 +51,13 @@ union FloatBytes {
 
 // --- DEFINICIONES DE ACCIONES ---
 enum ActionType {
-  MOVER_ARRIBA = 1,     // Resistencia 190-220 Ohms
-  MOVER_ABAJO = 2,      // Resistencia 850-1100 Ohms
-  MOVER_IZQUIERDA = 3,  // Resistencia 1.5k-2.5k Ohms
-  MOVER_DERECHA = 4,    // Resistencia 3.5k-4.5k Ohms
-  BLOQUE_CONTROL = 5,   // Resistencia 9k-11k Ohms (no invertible)
-  NEGACION = 6,         // Resistencia 19k-21k Ohms (no invertible)
-  MELODIA_1 = 7,        // Resistencia 5k-6k Ohms (no invertible)
+  MOVER_ARRIBA = 1,     // Resistencia 190-220 Ohms                   - 220 ohms
+  MOVER_ABAJO = 2,      // Resistencia 500-810 Ohms                   - 680ohms 
+  MOVER_IZQUIERDA = 3,  // Resistencia 920-1.2k Ohms                  - 1k
+  MOVER_DERECHA = 4,    // Resistencia 1.7k-2.5k Ohms                 - 2k
+  BLOQUE_CONTROL = 5,   // Resistencia 4k-6 Ohms (no invertible)      - 4.7k
+  NEGACION = 6,         // Resistencia 9k-11k Ohms (no invertible)    - 10k
+  MELODIA_1 = 7,        // Resistencia 19k-21k Ohms (no invertible)   - 20k
 };
 
 
@@ -159,10 +159,10 @@ void printResistance(float resistance, int rxNumber,int ledPin) {
     digitalWrite(ledPin, HIGH);
 
     // Formatear la resistencia para mostrar en Ohms, kOhms o MOhms
-    if (resistance >= 1000.0) { // Mayor o igual a 1 kOhms
+      if (resistance >= 1000.0) { // Mayor o igual a 1 kOhms
       Serial.print(resistance / 1000.0, 2);
       Serial.println(" kOhms");
-    } else { // Menor de 1 kOhms
+      } else { // Menor de 1 kOhms
       Serial.print(resistance, 2);
       Serial.println(" Ohms");
     }
@@ -176,8 +176,7 @@ void getValorInstruction(){
   for (int i = 0; i < 5; i++) {
    
     if(measuredResistances[i]>0){
-      ActionType action = mapResistanceToAction(measuredResistances[i]);  // Mapea la resistencia a un tipo de acción
-      valueInstruction[i] = action;
+       valueInstruction[i] = mapResistanceToAction(measuredResistances[i]);  // Mapea la resistencia a un tipo de acción
     }else{
       valueInstruction[i] = -1;
     }
@@ -187,19 +186,20 @@ void getValorInstruction(){
 
 // Mapea un valor de resistencia a un tipo de acción (no ejecuta, solo clasifica).
 ActionType mapResistanceToAction(float resistanceValue) {
-  if (resistanceValue >= 50.0 && resistanceValue <= 220.0) {
+
+  if (resistanceValue >= 190.0 && resistanceValue <= 250.0) {
     return MOVER_ARRIBA;
-  } else if (resistanceValue >= 850.0 && resistanceValue <= 1100.0) {
+  } else if (resistanceValue >= 500.0 && resistanceValue <= 810.0) {
     return MOVER_ABAJO;
-  } else if (resistanceValue >= 1500.0 && resistanceValue <= 2500.0) {
+  } else if (resistanceValue >= 920.0 && resistanceValue <= 1200.0) {
     return MOVER_IZQUIERDA;
-  } else if (resistanceValue >= 3500.0 && resistanceValue <= 4800.0) {
+  } else if (resistanceValue >= 1700.0 && resistanceValue <= 2500.0) {
     return MOVER_DERECHA;
-  } else if (resistanceValue >= 9000.0 && resistanceValue <= 11000.0) {
+  } else if (resistanceValue >= 4000.0 && resistanceValue <= 6000.0) {
     return BLOQUE_CONTROL;
-  } else if (resistanceValue >= 19000.0 && resistanceValue <= 21000.0) {
+  } else if (resistanceValue >= 9000.0 && resistanceValue <= 11000.0) {
     return NEGACION;
-  } else if (resistanceValue >= 5000.0 && resistanceValue <= 6000.0) {
+  } else if (resistanceValue >= 19000.0 && resistanceValue <= 211000.0) {
     return MELODIA_1;
   }
   // Manejo de errores o valores fuera de rango
