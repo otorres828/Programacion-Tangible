@@ -48,7 +48,6 @@ union FloatBytes {
 // --- ESTADO GLOBAL DEL ROBOT ---
 int robotX = 0;           // Posición actual en X (columna de la cuadrícula 0-4)
 int robotY = 0;           // Posición actual en Y (fila de la cuadrícula 0-4)
-const int GRID_SIZE = 5;  // Cuadrícula de 5x5 (0 a 4)
 
 // --- DECLARACIÓN DE FUNCIONES---
 void leerTodasColumnas();
@@ -60,8 +59,6 @@ void executeBlockControlLogicInternal();
 
 // Funciones de movimiento y auxiliares del robot
 bool isValidPosition(int x, int y);
-// void moveXY_steps(int deltaX_steps, int deltaY_steps); // Esta función está declarada pero no definida en el código proporcionado
-
 
 void setup() {
 
@@ -231,55 +228,44 @@ void performAction(ActionType action, int globalIndex) {
   Serial.print("Instruccion ");
   Serial.print(globalIndex + 1);
   Serial.print(": ");
-  Serial.print(action);
+  Serial.print(getAction(action));
 
   int nextX = robotX;
   int nextY = robotY;
   
-  // switch (action) {
-  //   case MOVER_ARRIBA:
-  //     mySerial.println("Avanzar " + String(globalIndex +1));
-  //     nextY++;
-  //     break;
-  //   case MOVER_ABAJO:
-  //     mySerial.println("Retroceder  " + String(globalIndex +1));
-  //     nextY--;
-  //     break;
-  //   case MOVER_IZQUIERDA:
-  //     mySerial.println("Izquierda  " + String(globalIndex +1));
-  //     nextX--;
-  //     break;
-  //   case MOVER_DERECHA:
-  //     mySerial.println("Derecha  " + String(globalIndex +1));
-  //     nextX++;
-  //     break;
-  //   case BLOQUE_CONTROL:
-  //     mySerial.println("Bloque Control  " + String(globalIndex +1));
-  //     break;
-  //   case NEGACION:
-  //     mySerial.println("Negacion  " + String(globalIndex +1));
-  //     break;
-  //   case MELODIA_1:
-  //     mySerial.println("Melodia  " + String(globalIndex +1));
-  //     break;
-  //   default:
-  //     mySerial.println("Ninguna instruccion  " + String(globalIndex +1));
-  //     break;
-  // }
-
+  switch (action) {
+    case MOVER_ARRIBA:
+      nextY++;
+      break;
+    case MOVER_ABAJO:
+      nextY--;
+      break;
+    case MOVER_IZQUIERDA:
+      nextX--;
+      break;
+    case MOVER_DERECHA:
+      nextX++;
+      break;
+    case BLOQUE_CONTROL:
+      break;
+    case NEGACION:
+      break;
+    case MELODIA_1:
+      break;
+    default:
+      break;
+  }
+  
   // Solo intenta mover si la acción fue una de movimiento
   if (action == MOVER_ARRIBA || action == MOVER_ABAJO || action == MOVER_IZQUIERDA || action == MOVER_DERECHA) {
     if (isValidPosition(nextX, nextY)) {
-      // Asumimos 100 pasos por unidad de cuadrícula para CoreXY. Ajusta según tu calibración.
-      int deltaX_steps = (nextX - robotX) * 100;
-      int deltaY_steps = (nextY - robotY) * 100;
-      robotX = nextX;  // Actualiza la posición del robot
+      robotX = nextX;  
       robotY = nextY;
     }
   }
   mySerial.println(action);
-  delay(1000);// Pausa entre el procesamiento de cada resistencia (instrucción)
-  Serial.println();  // Salto de línea para la siguiente impresión
+  delay(1000);
+  Serial.println();  
 }
 
 // Obtiene la acción invertida para una acción dada.
@@ -319,8 +305,7 @@ void executeBlockControlLogicInternal() {
             //Serial.println(" -> Negacion: Instruccion no invertible o de error. Omitir Instruccion.");
           } else {
             // Si es invertible, se ejecuta la acción invertida
-            //Serial.println(" -> Negacion: Invirtiendo la siguiente instruccion.");
-            performAction(getInvertedAction(controlAction), i + 10);  // Ajusta globalIndex para bloque de control
+            performAction(getInvertedAction(controlAction), i + 10);  
           }
         }
         // --- Fin Lógica de Negación ---
@@ -330,19 +315,49 @@ void executeBlockControlLogicInternal() {
             //Serial.println(" -> Negacion activada. La proxima instruccion sera invertida.");
           } else {
             // Para todas las demás acciones, ejecutar normalmente
-            performAction(controlAction, i + 10);  // Ajusta globalIndex
+            performAction(controlAction, i + 10); 
           }
         }
       }
     }
     delay(300);  // Pausa entre instrucciones de control
   }
-  //Serial.println(" -> Fin de Bloque de Control Interno.");
 }
 
-// --- FUNCIONES DE MOVIMIENTO Y AUXILIARES DEL ROBOT ---
 
 // Verifica si una posición (x, y) está dentro de los límites de la cuadrícula.
 bool isValidPosition(int x, int y) {
+  int GRID_SIZE = 5;
   return x >= 0 && x < GRID_SIZE && y >= 0 && y < GRID_SIZE;
+}
+
+
+string getAction(action){
+
+  switch (action) {
+    case MOVER_ARRIBA:
+      return "Avanzar"
+      break;
+    case MOVER_ABAJO:
+      return "Retroceder";
+      break;
+    case MOVER_IZQUIERDA:
+      return "Izquierda";
+      break;
+    case MOVER_DERECHA:
+      return "Derecha";
+      break;
+    case BLOQUE_CONTROL:
+      return "Bloque Control";
+      break;
+    case NEGACION:
+      return "Negacion";
+      break;
+    case MELODIA_1:
+      return "Melodia";
+      break;
+    default:
+      return "Ninguna instruccion";
+      break;
+  }
 }
