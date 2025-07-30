@@ -9,7 +9,7 @@
 
 #include <Wire.h>                     // Librería para comunicación I2C
 #include <SoftwareSerial.h>           // Libreria para comunicacion Bluetooth
-#include <Adafruit_PWMServoDriver.h>  // Librería para el PCA9685
+#include <Adafruit_PWMServoDriver.h>  // Librería para el PCA9685 - Controlador de Leds de las fichas
 
 #define BOTON_INICIO 2  // Pin del botón (con resistencia pull-up)
 
@@ -48,7 +48,7 @@ int robotX = 0;  // Posición actual en X (columna de la cuadrícula 0-4)
 int robotY = 0;  // Posición actual en Y (fila de la cuadrícula 0-4)
 
 // Crea un objeto PCA9685 , con Direccion 0x40 para comunicacion I2C con el driver Pca9685 que controlara los LEDS de las instrucciones
-Adafruit_PWMServoDriver pwm = Adafruit_PWMServoDriver("0x40");
+Adafruit_PWMServoDriver pwm = Adafruit_PWMServoDriver(0x40, Wire);
 
 // Define el número total de LEDs que vas a controlar
 const int NUM_LEDS = 15;
@@ -56,7 +56,7 @@ const int NUM_LEDS = 15;
 // Define los valores de brillo (PWM)
 // El PCA9685 tiene una resolución de 12 bits, lo que significa un rango de 0 a 4095.
 const int BRIGHTNESS_OFF = 0;                   // LED apagado
-const int BRIGHTNESS_20_PERCENT = 4095 * 0.20;  // Aproximadamente 819
+const int BRIGHTNESS_20_PERCENT  = 1000;  // Aproximadamente 819
 const int BRIGHTNESS_100_PERCENT = 4095;        // LED al máximo brillo
 
 // --- DECLARACIÓN DE FUNCIONES---
@@ -80,16 +80,15 @@ void setup() {
 
   Wire.begin();  // Inicia la comunicación I2C como Maestro
 
-  // Inicia el PCA9685 y la comunicación I2C.
+  // Inicia el PCA9685 y la comunicación I2C / Establecemos la frecuencia.
   pwm.begin();
+  pwm.setPWMFreq(1600);
 
-  // Establece la frecuencia PWM. 1000 Hz ,
-  pwm.setPWMFreq(1000);
-
-  // Todos los leds los colocamos apagados al inicio
-  for (int i = 0; i < NUM_LEDS; i++) {
-    pwm.setPWM(i, 0, BRIGHTNESS_OFF);  // Canal i, ON_time = 0, OFF_time = BRIGHTNESS_OFF
+  int q;
+  for (q = 0; q < NUM_LEDS; q++) {
+    pwm.setPWM(q, 0, BRIGHTNESS_20_PERCENT); // Canal i, ON_time = 0, OFF_time = BRIGHTNESS_OFF
   }
+ 
 
   pinMode(BOTON_INICIO, INPUT_PULLUP);  // Configura el pin del botón con resistencia pull-up interna
 
@@ -109,14 +108,13 @@ void loop() {
     copiarArrays();       // Copia los valores leídos a los arrays de instrucciones y bloque de control
 
     //Colocamos los Leds al 20% mientras no se inicie el recorrido
-    for (int i = 0; i < 15; i++) {
+    for (int i = 0; i < NUM_LEDS; i++) {
       if (allResistances[i] > 0) {                   // Si la resistencia es válida (hay una ficha)
         setLedBrightness(i, BRIGHTNESS_20_PERCENT);  // Enciende el LED correspondiente al 20%
       } else {
         setLedBrightness(i, BRIGHTNESS_OFF);  // Si no hay ficha o es inválida, asegúrate de que esté apagado
       }
     }
-
 
     delay(1000);  // Pequeña pausa para que no se sature el serial
   }
@@ -400,7 +398,7 @@ String getAction(ActionType action) {
 
 //  controla el brillo de un LED en el PCA9685
 void setLedBrightness(int ledIndex, int brightness) {
-  if (ledIndex >= 0 && ledIndex < NUM_LEDS) {
+  if (ledIndex >= 0 && ledIndex <= NUM_LEDS) {
     pwm.setPWM(ledIndex, 0, brightness);
   }
 }
