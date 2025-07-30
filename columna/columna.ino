@@ -56,8 +56,7 @@ enum ActionType {
   MOVER_IZQUIERDA = 3,  // Resistencia 920-1.2k Ohms                  - 1k
   MOVER_DERECHA = 4,    // Resistencia 1.7k-2.5k Ohms                 - 2k
   BLOQUE_CONTROL = 5,   // Resistencia 4k-6 Ohms (no invertible)      - 4.7k
-  NEGACION = 6,         // Resistencia 9k-11k Ohms (no invertible)    - 10k
-  MELODIA_1 = 7,        // Resistencia 19k-21k Ohms (no invertible)   - 20k
+  MELODIA_1 = 6,         // Resistencia 9k-11k Ohms (no invertible)    - 10k
 };
 
 
@@ -198,7 +197,7 @@ ActionType mapResistanceToAction(float resistanceValue) {
   } else if (resistanceValue >= 4000.0 && resistanceValue <= 6000.0) {
     return BLOQUE_CONTROL;
   } else if (resistanceValue >= 9000.0 && resistanceValue <= 11000.0) {
-    return NEGACION;
+    return MELODIA_1;
   } else if (resistanceValue >= 19000.0 && resistanceValue <= 211000.0) {
     return MELODIA_1;
   }
