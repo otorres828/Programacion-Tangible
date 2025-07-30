@@ -30,7 +30,6 @@ enum ActionType {
   MOVER_IZQUIERDA = 3,  // Resistencia 1.5k-2.5k Ohms
   MOVER_DERECHA = 4,    // Resistencia 3.5k-4.5k Ohms
   BLOQUE_CONTROL = 5,   // Resistencia 9k-11k Ohms (no invertible)
-  NEGACION = 6,         // Resistencia 19k-21k Ohms (no invertible)
   MELODIA_1 = 7,        // Resistencia 5k-6k Ohms (no invertible)
 };
 
@@ -61,7 +60,6 @@ const int BRILLO_100_PORCIENTO = 4095; // LED al máximo brillo
 enum SystemState { STATE_IDLE, STATE_RUNNING, STATE_PAUSED };
 SystemState estadoSistemaActual = STATE_IDLE;
 int actualInstruccionIndex = 0; // Índice de la instrucción actual en la secuencia principal (0-9)
-bool negacionActivaSiguienteInstruccion= false; // Flag para la negación en la secuencia principal
 
 // Variables para el manejo del botón (Debouncing y Pulsación Larga)
 unsigned long lastButtonStateChangeTime = 0;
@@ -86,7 +84,6 @@ void performAction(ActionType action, int globalIndex);
 void ejecutarBlockControl();
 void setLedBrightness(int ledIndex, int brightness);
 bool validarPosicionXY(int x, int y);
-ActionType getAccionInvertida(ActionType originalAction);
 String getAccionText(ActionType action);
 
 void setup() {
@@ -147,7 +144,6 @@ void loop() {
           Serial.println("Secuencia principal finalizada.");
           estadoSistemaActual = STATE_IDLE; // Vuelve al estado IDLE
           actualInstruccionIndex = 0; // Reinicia el índice para la próxima ejecución
-          negacionActivaSiguienteInstruccion= false; // Reinicia el flag de negación
 
           for (int i = 0; i < NUM_LEDS; i++) {
             setLedBrightness(i, BRILLO_20_PORCIENTO);
@@ -197,7 +193,6 @@ void botonPulsaciones() {
           Serial.println("Boton: INICIO de secuencia.");
           estadoSistemaActual = STATE_RUNNING;
           actualInstruccionIndex = 0; // Iniciar desde la primera instrucción
-          negacionActivaSiguienteInstruccion= false; // Resetear flag de negación
           lastActionExecutionTime = millis(); // Preparar el temporizador para la primera acción
         } else if (estadoSistemaActual == STATE_RUNNING) {
           Serial.println("Boton: PAUSA de secuencia.");
@@ -218,7 +213,6 @@ void botonPulsaciones() {
       longPressTriggered = true; // Marcar como manejado para que no se active de nuevo al soltar
       estadoSistemaActual = STATE_IDLE; // Reiniciar el sistema al estado IDLE
       actualInstruccionIndex = 0; // Reiniciar progreso de la secuencia
-      negacionActivaSiguienteInstruccion= false; // Reiniciar negación
 
       // Opcional: Re-leer todas las fichas y asegurar LEDs a OFF/20%
       leerTodasColumnas();
@@ -315,32 +309,14 @@ void copiarArrays() {
 
 // Esta función ejecuta UNA SOLA instrucción de la secuencia principal (la actual de actualInstruccionIndex)
 void doNextInstructionStep() {
+
   float instruccionActual = instruccionesColumnas[actualInstruccionIndex];
   ActionType actualAction = (ActionType)instruccionActual; // Castear a enum
 
   // Solo procesar si la instrucción es válida (resistencia positiva)
   if (instruccionActual > 0) {
 
-    if (negacionActivaSiguienteInstruccion) {
-      negacionActivaSiguienteInstruccion= false; // La negación se consume con esta instrucción
-
-      // Si la siguiente instrucción es no-invertible, se omite.
-      if (actualAction == NEGACION || actualAction == BLOQUE_CONTROL || actualAction == MELODIA_1) {
-        Serial.print("Instruccion "); Serial.print(actualInstruccionIndex + 1);
-        Serial.print(": Ficha NO Invertible. Omitida por Negacion.");
-      } else {
-        // Si es invertible, se ejecuta la acción invertida
-        Serial.print("Instruccion "); Serial.print(actualInstruccionIndex + 1);
-        Serial.print(": NEGADA. ");
-        performAction(getAccionInvertida(actualAction), actualInstruccionIndex);
-      }
-    } else { // Si la negación NO está activa para esta instrucción
-
-      if (actualAction == NEGACION) {
-        negacionActivaSiguienteInstruccion= true; // Activa la negación para la *PRÓXIMA* instrucción
-        Serial.print("Instruccion "); Serial.print(actualInstruccionIndex + 1);
-        Serial.println(": Ficha NEGACION. La siguiente instruccion sera invertida.");
-      } else if (actualAction == BLOQUE_CONTROL) {
+      if (actualAction == BLOQUE_CONTROL) {
 
         Serial.print("Instruccion "); Serial.print(actualInstruccionIndex + 1);
         ejecutarBlockControl(); // Esta función es bloqueante.
@@ -350,7 +326,7 @@ void doNextInstructionStep() {
         performAction(actualAction, actualInstruccionIndex);
       
       }
-    }
+    
 
   } 
   // El incremento de actualInstruccionIndex lo maneja el loop()
@@ -414,18 +390,6 @@ void performAction(ActionType action, int globalIndex) {
   }
 }
 
-// Obtiene la acción invertida para una acción dada.
-ActionType getAccionInvertida(ActionType originalAction) {
-  switch (originalAction) {
-    case MOVER_ARRIBA: return MOVER_ABAJO;
-    case MOVER_ABAJO: return MOVER_ARRIBA;
-    case MOVER_IZQUIERDA: return MOVER_DERECHA;
-    case MOVER_DERECHA: return MOVER_IZQUIERDA;
-    default:
-      return originalAction; // Para acciones no invertibles (NEGACION, BLOQUE_CONTROL, MELODIA_1) o errores
-  }
-}
-
 // Ejecuta la lógica del bloque de control, procesando las 5 resistencias de bloqueControl.
 // NOTA: Esta función es BLOQUEANTE debido al bucle 'for' y al 'delay'.
 void ejecutarBlockControl() {
@@ -441,33 +405,9 @@ void ejecutarBlockControl() {
 
       } else {
 
-        // --- Lógica de Negación dentro del Bloque de Control ---
-        if (negacionActivaSiguienteInstruccion) {
-          negacionActivaSiguienteInstruccion = false; // La negación se consume
-
-          // Si la instrucción es no-invertible, se omite.
-          if (controlAction == NEGACION || controlAction == MELODIA_1) {
-            Serial.print("Instruccion Control "); Serial.print(i + 1); Serial.println(": Ficha NO Invertible. Omitida por Negacion Interna.");
-          } else {
-            // Ejecuta la acción invertida. globalIndex ajustado para el rango de block control (10 a 14)
-            Serial.print("Instruccion Control "); Serial.print(i + 1); Serial.print(": NEGADA. ");
-            performAction(getAccionInvertida(controlAction), i + 10);
-          }
-        } else { // Si la negación NO está activa
-
-          if (controlAction == NEGACION) {
-            
-            negacionActivaSiguienteInstruccion = true; // Activa la negación para la *PRÓXIMA* instrucción interna
-            Serial.print("Instruccion Control "); Serial.print(i + 1); Serial.println(": Ficha NEGACION. La proxima instruccion interna sera invertida.");
-
-          } else {
-
-            // Para todas las demás acciones, ejecutar normalmente. globalIndex ajustado.
-            performAction(controlAction, i + 10);
-
-          }
-
-        }
+          // Para todas las demás acciones, ejecutar normalmente. globalIndex ajustado.
+          performAction(controlAction, i + 10);
+        
       }
     } 
     
@@ -490,7 +430,6 @@ String getAccionText(ActionType action) {
     case MOVER_IZQUIERDA: return "Izquierda";
     case MOVER_DERECHA:   return "Derecha";
     case BLOQUE_CONTROL:  return "Bloque Control";
-    case NEGACION:        return "Negacion";
     case MELODIA_1:       return "Melodia";
     default:              return "Ninguna instruccion / Error";
   }
