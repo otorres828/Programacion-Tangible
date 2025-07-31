@@ -56,7 +56,7 @@ enum ActionType {
   MOVER_IZQUIERDA = 3,  // Resistencia 920-1.2k Ohms                  - 1k
   MOVER_DERECHA = 4,    // Resistencia 1.7k-2.5k Ohms                 - 2k
   BLOQUE_CONTROL = 5,   // Resistencia 4k-6 Ohms (no invertible)      - 4.7k
-  MELODIA_1 = 6,         // Resistencia 9k-11k Ohms (no invertible)    - 10k
+  MELODIA_1 = 6,         // Resistencia 9k-11k Ohms (no invertible)   - 10k
 };
 
 

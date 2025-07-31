@@ -25,12 +25,12 @@ float bloqueControl[5];           // El bloque de control (las últimas 5 posici
 
 // --- DEFINICIONES DE ACCIONES ---
 enum ActionType {
-  MOVER_ARRIBA = 1,     // Resistencia 190-220 Ohms
-  MOVER_ABAJO = 2,      // Resistencia 850-1100 Ohms
-  MOVER_IZQUIERDA = 3,  // Resistencia 1.5k-2.5k Ohms
-  MOVER_DERECHA = 4,    // Resistencia 3.5k-4.5k Ohms
-  BLOQUE_CONTROL = 5,   // Resistencia 9k-11k Ohms (no invertible)
-  MELODIA_1 = 7,        // Resistencia 5k-6k Ohms (no invertible)
+  MOVER_ARRIBA = 1,     // Resistencia 190-220 Ohms                   - 220 ohms
+  MOVER_ABAJO = 2,      // Resistencia 500-810 Ohms                   - 680ohms 
+  MOVER_IZQUIERDA = 3,  // Resistencia 920-1.2k Ohms                  - 1k
+  MOVER_DERECHA = 4,    // Resistencia 1.7k-2.5k Ohms                 - 2k
+  BLOQUE_CONTROL = 5,   // Resistencia 4k-6 Ohms (no invertible)      - 4.7k
+  MELODIA_1 = 6,         // Resistencia 9k-11k Ohms (no invertible)   - 10k
 };
 
 
