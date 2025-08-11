@@ -34,13 +34,6 @@ const float ADC_REFERENCE_VOLTAGE = 3.3;  // Voltaje de referencia del ADC del A
 float measuredResistances[5];  // Array para guardar Rx1, Rx2, Rx3, Rx4, Rx5
 float valueInstruction[5];   // Array el valor de las instrucciones
 
-// Pines digitales para los LEDs de cada resistencia
-#define ledPin1 2  // D2 para Rx1
-#define ledPin2 3  // D3 para Rx2
-#define ledPin3 4  // D4 para Rx3
-#define ledPin4 5  // D5 para Rx4
-#define ledPin5 6  // D6 para Rx5 (Corregido: era D5 en el comentario original, ahora D6)
-
 // --- UNIÓN PARA CONVERTIR FLOAT A BYTES Y VICEVERSA ---
 // Esto es necesario porque Wire.write() y Wire.read() operan con bytes.
 union FloatBytes {
@@ -68,19 +61,6 @@ void setup() {
   // Registra la función que se llamará cuando el Maestro solicite datos.
   Wire.onRequest(requestEvent);
 
-  // Configurar los pines de los LEDs como SALIDA
-  pinMode(ledPin1, OUTPUT);
-  pinMode(ledPin2, OUTPUT);
-  pinMode(ledPin3, OUTPUT);
-  pinMode(ledPin4, OUTPUT);
-  pinMode(ledPin5, OUTPUT);  // Configura el pin del LED 5
-
-  // Asegurarse de que los LEDs estén apagados al inicio
-  digitalWrite(ledPin1, LOW);
-  digitalWrite(ledPin2, LOW);
-  digitalWrite(ledPin3, LOW);
-  digitalWrite(ledPin4, LOW);
-  digitalWrite(ledPin5, LOW);  // Apaga el LED 5
 
   // Mensajes iniciales informativos en el Monitor Serial.
   Serial.println("----------------------------------");
@@ -141,21 +121,16 @@ float getResistanceValue(float v2, float v1) {
 }
 
 //Imprime el valor de las resistencias
-void printResistance(float resistance, int rxNumber,int ledPin) {
+void printResistance(float resistance, int rxNumber) {
 
   Serial.print("Rx");
   Serial.print(rxNumber);
   Serial.print(": ");
 
-  // Apagar el LED al inicio de cada evaluación
-  digitalWrite(ledPin, LOW);
 
-   if (resistance == -2.0 || resistance < -3.0 || resistance < 0) { // Incluye negativos por ruido
+  if (resistance == -2.0 || resistance < -3.0 || resistance < 0) { // Incluye negativos por ruido
     Serial.println("CORTO / Valor Invalido");
   } else {
-
-    // Valor válido, encender el LED
-    digitalWrite(ledPin, HIGH);
 
     // Formatear la resistencia para mostrar en Ohms, kOhms o MOhms
       if (resistance >= 1000.0) { // Mayor o igual a 1 kOhms
@@ -235,33 +210,26 @@ void loop() {
   Serial.print(avgInputVoltage, 2);
   Serial.println(" V");
 
-  // Asegurarse de que los LEDs estén apagados antes de la nueva ronda de mediciones
-  digitalWrite(ledPin1, LOW);
-  digitalWrite(ledPin2, LOW);
-  digitalWrite(ledPin3, LOW);
-  digitalWrite(ledPin4, LOW);
-  digitalWrite(ledPin5, LOW);  // Apaga el LED 5
-
   // Medir y calcular cada resistencia Rx, y controlar su LED correspondiente.
   float avgDividerVoltage_Rx1 = getAverageVoltage(dividerInput1);
   measuredResistances[0] = getResistanceValue(avgDividerVoltage_Rx1, avgInputVoltage);  // v_out, v_in
-  printResistance(measuredResistances[0], 1, ledPin1);
+  printResistance(measuredResistances[0], 1);
 
   float avgDividerVoltage_Rx2 = getAverageVoltage(dividerInput2);
   measuredResistances[1] = getResistanceValue(avgDividerVoltage_Rx2, avgInputVoltage);  // v_out, v_in
-  printResistance(measuredResistances[1], 2, ledPin2);
+  printResistance(measuredResistances[1], 2);
 
   float avgDividerVoltage_Rx3 = getAverageVoltage(dividerInput3);
   measuredResistances[2] = getResistanceValue(avgDividerVoltage_Rx3, avgInputVoltage);  // v_out, v_in
-  printResistance(measuredResistances[2], 3, ledPin3);
+  printResistance(measuredResistances[2], 3);
 
   float avgDividerVoltage_Rx4 = getAverageVoltage(dividerInput4);
   measuredResistances[3] = getResistanceValue(avgDividerVoltage_Rx4, avgInputVoltage);  // v_out, v_in
-  printResistance(measuredResistances[3], 4, ledPin4);
+  printResistance(measuredResistances[3], 4);
 
   float avgDividerVoltage_Rx5 = getAverageVoltage(dividerInput5);
   measuredResistances[4] = getResistanceValue(avgDividerVoltage_Rx5, avgInputVoltage);  // v_out, v_in
-  printResistance(measuredResistances[4], 5, ledPin5);                                  // Corregido: Usar ledPin5
+  printResistance(measuredResistances[4], 5);                                
 
   getValorInstruction();
 
