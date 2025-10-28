@@ -22,7 +22,6 @@
 #define dividerInput2 A2
 #define dividerInput3 A3
 #define dividerInput4 A6
-#define dividerInput5 A7  // Pin para la quinta resistencia
 
 // Valor de la resistencia de referencia conocida (R1) en Ohmios (Ω).
 #define RC 1000  // Resistencia de Referencia = 1 kOhmio (1000 Ohms)
@@ -227,11 +226,8 @@ void loop() {
   measuredResistances[3] = getResistanceValue(avgDividerVoltage_Rx4, avgInputVoltage);  // v_out, v_in
   printResistance(measuredResistances[3], 4);
 
-  float avgDividerVoltage_Rx5 = getAverageVoltage(dividerInput5);
-  measuredResistances[4] = getResistanceValue(avgDividerVoltage_Rx5, avgInputVoltage);  // v_out, v_in
-  printResistance(measuredResistances[4], 5);                                
-
   getValorInstruction();
 
   delay(1000);  // Espera 1 segundo antes de la siguiente ronda de mediciones
+  
 }

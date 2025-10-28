@@ -19,9 +19,9 @@ SoftwareSerial mySerial(10, 11); // RX, TX para Bluetooth
 const int SLAVE_ADDRESSES[] = { 0x01, 0x02, 0x03 };
 
 // Arrays para almacenar los datos
-float allResistances[15];         // Almacena todas las 15 resistencias leídas
-float instruccionesColumnas[10];  // Las primeras 10 instrucciones (de las 2 columnas)
-float bloqueControl[5];           // El bloque de control (las últimas 5 posiciones)
+float allResistances[12];         // Almacena todas las 12 resistencias leídas
+float instruccionesColumnas[8];  // Las primeras 8 instrucciones (de las 2 columnas)
+float bloqueControl[4];           // El bloque de control (las últimas 4 posiciones)
 
 // --- DEFINICIONES DE ACCIONES ---
 enum ActionType {
@@ -48,11 +48,11 @@ int robotY = 0;  // Posición actual en Y (fila de la cuadrícula 0-4)
 Adafruit_PWMServoDriver pwm = Adafruit_PWMServoDriver(0x40, Wire);
 
 // Define el número total de LEDs que vas a controlar
-const int NUM_LEDS = 15;
+const int NUM_LEDS = 12; // 8 instrucciones de columnas + 4 de bloque de control
 
 // Define los valores de brillo (PWM)
 // El PCA9685 tiene una resolución de 12 bits, lo que significa un rango de 0 a 4095.
-const int BRILLO_OFF         = 0;    // LED apagado
+const int BRILLO_OFF           = 0;    // LED apagado
 const int BRILLO_20_PORCIENTO  = 819;  // 20% de 4095
 const int BRILLO_100_PORCIENTO = 4095; // LED al máximo brillo
 
@@ -76,15 +76,15 @@ unsigned long lastActionExecutionTime = 0;
 const unsigned long DELAY_POR_INSTRUCCION = 3000; // 3 segundo de retraso entre la ejecución de acciones
 
 // --- DECLARACIÓN DE FUNCIONES---
-void leerTodasColumnas();
-void copiarArrays();
-void botonPulsaciones(); // Nueva función para manejar el botón
-void doNextInstructionStep(); // Nueva función para ejecutar una sola instrucción
-void performAction(ActionType action, int globalIndex);
-void ejecutarBlockControl();
-void setLedBrightness(int ledIndex, int brightness);
-bool validarPosicionXY(int x, int y);
-String getAccionText(ActionType action);
+void leerTodasColumnas();                                  // Leer los datos de los 3 esclavos I2C (2 columnas y bloque de control)
+void copiarArrays();                                       // Copiar los datos leídos a las variables globales
+void botonPulsaciones();                                   // Manejar el botón
+void ejecutarSiguienteInstruccion();                       // Ejecutar una sola instrucción
+void enviarBluetooth(ActionType action, int globalIndex);  // Ejecutar una acción específica
+void ejecutarBlockControl();                               // Ejecutar la lógica del bloque de control
+void setBrilloLeds(int ledIndex, int brightness);          // Establecer el brillo de un LED
+bool validarPosicionXY(int x, int y);                      // Validar si una posición (x,y) es válida en la cuadrícula
+String getAccionText(ActionType action);                   // Obtener el texto descriptivo de una acción - Lo usamos para debuguear
 
 void setup() {
 
@@ -113,6 +113,7 @@ void setup() {
   Serial.println("Estado actual: IDLE (esperando boton para iniciar)");
 
   mySerial.begin(9600); // Colocamos el módulo bluetooth en 9600
+  mySerial.print(99);   // Mandamos indicacion de reinicio al CNC esclavo
 }
 
 void loop() {
@@ -133,9 +134,9 @@ void loop() {
       // Si la secuencia está corriendo y ha pasado suficiente tiempo desde la última acción
       if (millis() - lastActionExecutionTime >= DELAY_POR_INSTRUCCION) {
 
-        if (actualInstruccionIndex < 10) { // Si aún quedan instrucciones en la secuencia principal
+        if (actualInstruccionIndex < 8) { // Si aún quedan instrucciones en la secuencia principal (2 columnas × 4)
 
-          doNextInstructionStep(); // Ejecuta la siguiente instrucción
+          ejecutarSiguienteInstruccion(); // Ejecuta la siguiente instrucción
           lastActionExecutionTime = millis(); // Actualiza el tiempo de la última acción ejecutada
 
         } else {
@@ -146,7 +147,7 @@ void loop() {
           actualInstruccionIndex = 0; // Reinicia el índice para la próxima ejecución
 
           for (int i = 0; i < NUM_LEDS; i++) {
-            setLedBrightness(i, BRILLO_20_PORCIENTO);
+            setBrilloLeds(i, BRILLO_20_PORCIENTO);
           }
         }
 
@@ -156,16 +157,16 @@ void loop() {
 
     case STATE_PAUSED:
 
-      // En el estado PAUSED, no se ejecutan nuevas acciones de movimiento.
-      // Puedes optar por seguir leyendo las fichas para que los LEDs sigan reflejando las presentes al 20%.
-      leerTodasColumnas();
-      copiarArrays();
-      break;
+        // En el estado PAUSED, no se ejecutan nuevas acciones de movimiento.
+        // Puedes optar por seguir leyendo las fichas para que los LEDs sigan reflejando las presentes al 20%.
+        leerTodasColumnas();
+        copiarArrays();
+        break;
 
-  }
+      }
 
-  // Pequeña pausa para no saturar el serial 
-  delay(10);
+    // Pequeña pausa para no saturar el serial 
+    delay(10);
   
 }
 
@@ -219,7 +220,7 @@ void botonPulsaciones() {
       copiarArrays();
       // Asegurarse de que todos los LEDs del PCA9685 se apaguen por completo (serán luego 20% por lectura)
       for (int i = 0; i < NUM_LEDS; i++) {
-        setLedBrightness(i, BRILLO_20_PORCIENTO);
+        setBrilloLeds(i, BRILLO_20_PORCIENTO);
       }
     }
   }
@@ -234,11 +235,11 @@ void botonPulsaciones() {
 void leerTodasColumnas() {
   int currentGlobalIndex = 0; // Para llevar el control de la posición en allResistances
 
-  // 1. Leer de los dos primeros esclavos (columnas), cada uno con 5 resistencias
+  // 1. Leer de los dos primeros esclavos (columnas), cada uno con 4 resistencias
   for (int col = 0; col < 2; col++) { // Para las 2 columnas
     int slaveAddress = SLAVE_ADDRESSES[col];
-    int floatsToRequest = 5;
-    int bytesToRequest = floatsToRequest * sizeof(float); // 5 floats * 4 bytes/float = 20 bytes
+    int floatsToRequest = 4; // Cada columna envía 4 floats
+    int bytesToRequest = floatsToRequest * sizeof(float); // 4 floats * 4 bytes/float = 16 bytes
 
     // Serial.print("Solicitando "); Serial.print(floatsToRequest); Serial.print(" floats del esclavo 0x"); Serial.println(slaveAddress, HEX);
 
@@ -258,15 +259,15 @@ void leerTodasColumnas() {
     delay(10); // Pequeña pausa para I2C
   }
 
-  // 2. Leer del tercer esclavo (bloque de control), con 5 resistencias
+  // 2. Leer del tercer esclavo (bloque de control), con 4 resistencias
   int blockControlSlaveAddress = SLAVE_ADDRESSES[2]; // El tercer esclavo
-  int floatsToRequest = 5;                           // El bloque de control tiene 5 resistencias
-  int bytesToRequest = floatsToRequest * sizeof(float);
+  int floatBloqueControl = 4;                           // El bloque de control tiene 4 resistencias
+  int bytesToRequest = floatBloqueControl * sizeof(float);
 
   Wire.requestFrom(blockControlSlaveAddress, bytesToRequest);
 
   FloatBytes fb;
-  for (int i = 0; i < floatsToRequest; i++) {
+  for (int i = 0; i < floatBloqueControl; i++) {
     if (Wire.available() >= sizeof(float)) {
       for (int j = 0; j < sizeof(float); j++) {
         fb.b[j] = Wire.read();
@@ -283,9 +284,9 @@ void leerTodasColumnas() {
   // que los LEDs se actualizan cada vez que se leen las resistencias.
   for (int i = 0; i < NUM_LEDS; i++) {
     if (allResistances[i] > 0) {
-      setLedBrightness(i, BRILLO_20_PORCIENTO);
+      setBrilloLeds(i, BRILLO_20_PORCIENTO);
     } else {
-      setLedBrightness(i, BRILLO_OFF);
+      setBrilloLeds(i, BRILLO_OFF);
     }
   }
 }
@@ -293,13 +294,13 @@ void leerTodasColumnas() {
 // Copiar los valores después de leer todas las columnas a sus arrays específicos
 void copiarArrays() {
   
-  // Copia las primeras 10 posiciones a instruccionesColumnas (las 2 columnas de 5 resistencias)
-  for (int i = 0; i < 10; i++) {
+  // Copia las primeras 8 posiciones a instruccionesColumnas (las 2 columnas de 4 resistencias)
+  for (int i = 0; i < 8; i++) {
     instruccionesColumnas[i] = allResistances[i];
   }
-  // Copia las últimas 5 posiciones a bloqueControl (el bloque de control)
-  for (int i = 0; i < 5; i++) {
-    bloqueControl[i] = allResistances[10 + i]; // Empieza en el índice 10
+  // Copia las últimas 4 posiciones a bloqueControl (el bloque de control)
+  for (int i = 0; i < 4; i++) {
+    bloqueControl[i] = allResistances[8 + i]; // Empieza en el índice 8
   }
 }
 
@@ -308,7 +309,7 @@ void copiarArrays() {
 // -------------------------------------------------------------------------
 
 // Esta función ejecuta UNA SOLA instrucción de la secuencia principal (la actual de actualInstruccionIndex)
-void doNextInstructionStep() {
+void ejecutarSiguienteInstruccion() {
 
   float instruccionActual = instruccionesColumnas[actualInstruccionIndex];
   ActionType actualAction = (ActionType)instruccionActual; // Castear a enum
@@ -323,7 +324,7 @@ void doNextInstructionStep() {
         
       } else {
         // Para todas las demás acciones (movimiento, melodía)
-        performAction(actualAction, actualInstruccionIndex);
+        enviarBluetooth(actualAction, actualInstruccionIndex);
       
       }
     
@@ -335,7 +336,7 @@ void doNextInstructionStep() {
 }
 
 // Ejecuta una acción específica basada en el ActionType.
-void performAction(ActionType action, int globalIndex) {
+void enviarBluetooth(ActionType action, int globalIndex) {
 
   Serial.print("Instruccion ");
   Serial.print(globalIndex + 1);
@@ -347,7 +348,7 @@ void performAction(ActionType action, int globalIndex) {
 
   // Enciende el LED de la ficha al 100% durante la ejecución
   if (globalIndex >= 0 && globalIndex < NUM_LEDS) {
-    setLedBrightness(globalIndex, BRILLO_100_PORCIENTO);
+    setBrilloLeds(globalIndex, BRILLO_100_PORCIENTO);
   }
 
   switch (action) {
@@ -367,34 +368,45 @@ void performAction(ActionType action, int globalIndex) {
       break;
   }
 
+  bool accionValida = false;
   // Actualiza la posición del robot solo si fue una acción de movimiento válida
   if (action == MOVER_ARRIBA || action == MOVER_ABAJO || action == MOVER_IZQUIERDA || action == MOVER_DERECHA) {
     if (validarPosicionXY(nextX, nextY)) {
       robotX = nextX;
       robotY = nextY;
+      accionValida = true;
+    }else{
+      accionValida = false;
     }
+  }else if(action == MELODIA_1){
+    accionValida = true; // Siempre válida para melodía
   }
 
-  // Envía la acción por Bluetooth al Arduino de motores
-  mySerial.println(action);
-  Serial.println(); // Salto de línea para mejor legibilidad en el monitor serial
+  if(accionValida){
+
+    // Envía la acción por Bluetooth al CNC solo si el movimiento es valido
+    mySerial.println(action);
+    Serial.println(); // Salto de línea para mejor legibilidad en el monitor serial
+
+  }
 
   // Baja el brillo del LED de la ficha de nuevo al 20% después de ejecutar la acción
   // (si la ficha sigue presente)
   if (globalIndex >= 0 && globalIndex < NUM_LEDS) {
     if (allResistances[globalIndex] > 0) { // Verifica si la ficha aún es considerada válida
-      setLedBrightness(globalIndex, BRILLO_20_PORCIENTO);
+      setBrilloLeds(globalIndex, BRILLO_20_PORCIENTO);
     } else {
-      setLedBrightness(globalIndex, BRILLO_OFF); // Si la ficha fue quitada, apagar completamente
+      setBrilloLeds(globalIndex, BRILLO_OFF); // Si la ficha fue quitada, apagar completamente
     }
   }
+
 }
 
-// Ejecuta la lógica del bloque de control, procesando las 5 resistencias de bloqueControl.
+// Ejecuta la lógica del bloque de control, procesando las 4 resistencias de bloqueControl.
 // NOTA: Esta función es BLOQUEANTE debido al bucle 'for' y al 'delay'.
 void ejecutarBlockControl() {
 
-  for (int i = 0; i < 5; i++) { // Las 5 resistencias del bloque de control
+  for (int i = 0; i < 4; i++) { // Las 4 resistencias del bloque de control
     float controlRawInstruction = bloqueControl[i];
     ActionType controlAction = (ActionType)controlRawInstruction;
 
@@ -406,7 +418,7 @@ void ejecutarBlockControl() {
       } else {
 
           // Para todas las demás acciones, ejecutar normalmente. globalIndex ajustado.
-          performAction(controlAction, i + 10);
+          enviarBluetooth(controlAction, i + 8); // Bloque comienza en índice 8
         
       }
     } 
@@ -436,7 +448,7 @@ String getAccionText(ActionType action) {
 }
 
 //  controla el brillo de un LED en el PCA9685
-void setLedBrightness(int ledIndex, int brightness) {
+void setBrilloLeds(int ledIndex, int brightness) {
   if (ledIndex >= 0 && ledIndex <= NUM_LEDS) {
     pwm.setPWM(ledIndex, 0, brightness);
   }

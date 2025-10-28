@@ -56,6 +56,7 @@ const int steps[][4] = {
   {0, 0, 1, 0}, // Paso 3 (IN3 ON)
   {0, 0, 0, 1}  // Paso 4 (IN4 ON)
 };
+
 const int NUM_STEPS_SEQUENCE = 4;
 
 // --- CABECERAS DE FUNCIONES ---
@@ -101,12 +102,6 @@ void setup() {
 }
 
 void loop() {
-  // Con DFRobotDFPlayerMini no se necesita un mp3.loop(),
-  // pero puedes leer la retroalimentación si lo deseas
-  if (mp3.available()) {
-    // Aquí podrías leer el estado del módulo MP3
-    // Por ejemplo: Serial.println(mp3.readType());
-  }
 
   if (bluetoothSerial.available()) {
     int receivedAction = bluetoothSerial.parseInt();
@@ -114,6 +109,12 @@ void loop() {
       bluetoothSerial.read();
     }
     if (receivedAction > 0) {
+
+
+      if(receivedAction == 99){
+        doHoming(); //reseteamos si se apara y se prende el tablero principal
+        return; 
+      }
       ActionType action = static_cast<ActionType>(receivedAction);
       Serial.print("Recibido del Maestro: ");
       Serial.println(receivedAction);
