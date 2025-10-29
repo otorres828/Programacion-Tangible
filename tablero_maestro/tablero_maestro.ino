@@ -406,24 +406,24 @@ void enviarBluetooth(ActionType action, int globalIndex) {
 // NOTA: Esta función es BLOQUEANTE debido al bucle 'for' y al 'delay'.
 void ejecutarBlockControl() {
 
-  for (int i = 0; i < 4; i++) { // Las 4 resistencias del bloque de control
-    float controlRawInstruction = bloqueControl[i];
-    ActionType controlAction = (ActionType)controlRawInstruction;
+  static int i = 0;
+  static unsigned long lastTime = 0;
 
-    if (controlRawInstruction > 0) { // Solo procesar resistencias válidas
-      if (controlAction == BLOQUE_CONTROL) {
+  if (millis() - lastTime >= DELAY_POR_INSTRUCCION) {
+    lastTime = millis();
 
-        // No se permite una llamada recursiva para evitar bucles infinitos
+    if (i < 4) {
+      float controlRawInstruction = bloqueControl[i];
+      ActionType controlAction = (ActionType)controlRawInstruction;
 
-      } else {
-
-          // Para todas las demás acciones, ejecutar normalmente. globalIndex ajustado.
-          enviarBluetooth(controlAction, i + 8); // Bloque comienza en índice 8
-        
+      if (controlRawInstruction > 0 && controlAction != BLOQUE_CONTROL) {
+        enviarBluetooth(controlAction, i + 8);
       }
-    } 
-    
-    delay(DELAY_POR_INSTRUCCION); // Pausa entre instrucciones del bloque de control
+
+      i++;
+    } else {
+      i = 0; // reiniciar para la siguiente ejecución
+    }
   }
 
 }

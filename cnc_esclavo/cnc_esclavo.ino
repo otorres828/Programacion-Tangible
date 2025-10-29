@@ -12,7 +12,7 @@
 SoftwareSerial bluetoothSerial(10, 11); // RX, TX para Bluetooth (conectado a TX, RX del Maestro)
 
 // --- Pines para SoftSerial del DFPlayer Mini ---
-SoftwareSerial myMp3Serial(12, 13); // RX, TX para DFPlayer (conectado a TX, RX del DFPlayer)
+// SoftwareSerial myMp3Serial(12, 13); // RX, TX para DFPlayer (conectado a TX, RX del DFPlayer)
 
 // --- Definiciones para los motores 28BYJ-48 con ULN2003 ---
 // Motor 1 (izquierda)
@@ -34,10 +34,10 @@ const int STEPS_PER_REVOLUTION = 2048;
 #define ENDSTOP_Y_PIN A1 // Pin para el final de carrera del Eje Y
 
 // --- Objeto del DFPlayer Mini ---
-DFRobotDFPlayerMini mp3;
+// DFRobotDFPlayerMini mp3;
 
 // --- Velocidad de los motores ---
-const int MOTOR_SPEED_RPM = 10; // RPMs (ajusta según tus necesidades)
+const int MOTOR_SPEED_RPM = 5; // RPMs (ajusta según tus necesidades)
 const int HOMING_SPEED_RPM = 5; // RPMs para el homing (más lento para mayor seguridad)
 
 // --- Definiciones de Acciones ---
@@ -63,13 +63,15 @@ const int NUM_STEPS_SEQUENCE = 4;
 void setMotorPins(int in1, int in2, int in3, int in4, int stepIndex);
 void moveHbot(int stepsX, int stepsY, int motorSpeedRpm);
 void doHoming();
-void playInstructionAudio(ActionType action);
+// void playInstructionAudio(ActionType action);
 void executeAction(ActionType action);
 
 // --- SETUP Y LOOP ---
 void setup() {
+
   Serial.begin(9600);
   bluetoothSerial.begin(9600);
+  Serial.println("CNC Esclavo Iniciado.");
 
   // Configurar pines de motores
   pinMode(IN1_M1, OUTPUT);
@@ -82,20 +84,19 @@ void setup() {
   pinMode(IN4_M2, OUTPUT);
 
   // Configurar pines de finales de carrera
-  pinMode(ENDSTOP_X_PIN, INPUT_PULLUP);
-  pinMode(ENDSTOP_Y_PIN, INPUT_PULLUP);
+  // pinMode(ENDSTOP_X_PIN, INPUT_PULLUP);
+  // pinMode(ENDSTOP_Y_PIN, INPUT_PULLUP);
 
   // Iniciar módulo MP3
-  myMp3Serial.begin(9600);
+  // myMp3Serial.begin(9600);
   // Verificar si el módulo MP3 está conectado
-  if (!mp3.begin(myMp3Serial)) {
-    Serial.println(F("No se pudo inicializar DFPlayer. Revisa las conexiones."));
-    while(true); // Detener el programa si no se inicializa
-  }
-  Serial.println(F("DFPlayer Mini inicializado."));
-  mp3.volume(20); // Ajustar volumen (0-30)
+  // if (!mp3.begin(myMp3Serial)) {
+  //   Serial.println(F("No se pudo inicializar DFPlayer. Revisa las conexiones."));
+  //   while(true); // Detener el programa si no se inicializa
+  // }
+  // Serial.println(F("DFPlayer Mini inicializado."));
+  // mp3.volume(20); // Ajustar volumen (0-30)
 
-  Serial.println("CNC Esclavo Iniciado.");
   Serial.println("Realizando proceso de homing...");
   doHoming(); // Ejecutar homing al inicio
   Serial.println("Homing completado. Esperando instrucciones...");
@@ -108,6 +109,10 @@ void loop() {
     while (bluetoothSerial.available()) {
       bluetoothSerial.read();
     }
+
+    Serial.print("Recibido del Maestro: ");
+    Serial.println(receivedAction);
+
     if (receivedAction > 0) {
 
 
@@ -116,8 +121,6 @@ void loop() {
         return; 
       }
       ActionType action = static_cast<ActionType>(receivedAction);
-      Serial.print("Recibido del Maestro: ");
-      Serial.println(receivedAction);
       executeAction(action);
     }
   }
@@ -134,7 +137,7 @@ void setMotorPins(int in1, int in2, int in3, int in4, int stepIndex) {
 
 void moveHbot(int stepsX, int stepsY, int motorSpeedRpm) {
   if (motorSpeedRpm <= 0) motorSpeedRpm = 1;
-  unsigned long delayBetweenSteps = 60000000L / (STEPS_PER_REVOLUTION * motorSpeedRpm);
+  unsigned long delayBetweenSteps = 60000000 / (STEPS_PER_REVOLUTION * motorSpeedRpm);
   
   // Calcular los pasos para cada motor en base a la cinemática del H-bot
   // stepsX > 0 mueve DERECHA, stepsX < 0 mueve IZQUIERDA
@@ -168,21 +171,23 @@ void moveHbot(int stepsX, int stepsY, int motorSpeedRpm) {
 
 void doHoming() {
   Serial.println("Iniciando Homing (H-Bot)...");
-  
+  const int steps = STEPS_PER_REVOLUTION / 2;
+
   // Mover el Eje X (ambos motores en la misma dirección)
   Serial.println("Homing Eje X (moviendo izquierda)...");
-  playInstructionAudio(MOVER_IZQUIERDA);
+  // playInstructionAudio(MOVER_IZQUIERDA);
+  //digitalRead(ENDSTOP_X_PIN) == HIGH
   while (digitalRead(ENDSTOP_X_PIN) == HIGH) {
-    moveHbot(-1, 0, HOMING_SPEED_RPM);
+    moveHbot(-steps, 0, HOMING_SPEED_RPM);
   }
   Serial.println("Final de carrera X alcanzado.");
   moveHbot(10, 0, HOMING_SPEED_RPM);
 
   // Mover el Eje Y (motores en direcciones opuestas)
   Serial.println("Homing Eje Y (moviendo abajo)...");
-  playInstructionAudio(MOVER_ABAJO);
+  // playInstructionAudio(MOVER_ABAJO);
   while (digitalRead(ENDSTOP_Y_PIN) == HIGH) {
-    moveHbot(0, -1, HOMING_SPEED_RPM);
+    moveHbot(steps, -1, HOMING_SPEED_RPM);
   }
   Serial.println("Final de carrera Y alcanzado.");
   moveHbot(0, 10, HOMING_SPEED_RPM);
@@ -200,31 +205,32 @@ void playInstructionAudio(ActionType action) {
     case MELODIA_1:       trackNumber = 5; break;
     default:              return;
   }
-  mp3.play(trackNumber);
+  // mp3.play(trackNumber);
   delay(100);
 }
 
 void executeAction(ActionType action) {
-  playInstructionAudio(action);
+  // playInstructionAudio(action);
 
-  const int steps = STEPS_PER_REVOLUTION / 5;
+  const int steps = STEPS_PER_REVOLUTION / 2;
 
   switch (action) {
     case MOVER_ARRIBA:
       Serial.println("Moviendo ARRIBA...");
-      moveHbot(0, steps, MOTOR_SPEED_RPM);
+      moveHbot(-steps, 0, MOTOR_SPEED_RPM);
       break;
     case MOVER_ABAJO:
       Serial.println("Moviendo ABAJO...");
-      moveHbot(0, -steps, MOTOR_SPEED_RPM);
+      moveHbot(steps, 0, MOTOR_SPEED_RPM);
+      
       break;
     case MOVER_IZQUIERDA:
       Serial.println("Moviendo IZQUIERDA...");
-      moveHbot(-steps, 0, MOTOR_SPEED_RPM);
+      moveHbot(0, steps, MOTOR_SPEED_RPM);
       break;
     case MOVER_DERECHA:
       Serial.println("Moviendo DERECHA...");
-      moveHbot(steps, 0, MOTOR_SPEED_RPM);
+      moveHbot(0, -steps, MOTOR_SPEED_RPM);
       break;
     case MELODIA_1:
       Serial.println("Reproduciendo Melodia 1...");
