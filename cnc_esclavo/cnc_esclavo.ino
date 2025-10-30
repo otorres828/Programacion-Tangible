@@ -2,14 +2,14 @@
 // Código para Arduino Nano Esclavo (CNC Control de Motores) - cnc_esclavo.ino
 // Recibe instrucciones del Arduino Maestro vía Bluetooth y controla 2 motores paso a paso.
 // Adaptado para un sistema H-BOT.
-// Incluye proceso de homing/calibración con finales de carrera y reproducción de audio.
+// Incluye proceso de homing/calibración con finales de carrera (sensor de efecto hall) y reproducción de audio.
 // ---------------------------------------------------------------------------------------
 
 #include <SoftwareSerial.h> // Librería para comunicación Bluetooth
 #include <DFRobotDFPlayerMini.h> // Librería para DFPlayer Mini (la oficial de DFRobot)
 
 // --- Pines del módulo Bluetooth HC-05 ---
-SoftwareSerial bluetoothSerial(10, 11); // RX, TX para Bluetooth (conectado a TX, RX del Maestro)
+SoftwareSerial bluetoothSerial(10, 11); // RX, TX para Bluetooth (conectado a TX, RX del CNC)
 
 // --- Pines para SoftSerial del DFPlayer Mini ---
 // SoftwareSerial myMp3Serial(12, 13); // RX, TX para DFPlayer (conectado a TX, RX del DFPlayer)
@@ -115,13 +115,9 @@ void loop() {
 
     if (receivedAction > 0) {
 
-
-      if(receivedAction == 99){
-        doHoming(); //reseteamos si se apara y se prende el tablero principal
-        return; 
-      }
       ActionType action = static_cast<ActionType>(receivedAction);
       executeAction(action);
+
     }
   }
 }
@@ -176,7 +172,6 @@ void doHoming() {
   // Mover el Eje X (ambos motores en la misma dirección)
   Serial.println("Homing Eje X (moviendo izquierda)...");
   // playInstructionAudio(MOVER_IZQUIERDA);
-  //digitalRead(ENDSTOP_X_PIN) == HIGH
   while (digitalRead(ENDSTOP_X_PIN) == HIGH) {
     moveHbot(-steps, 0, HOMING_SPEED_RPM);
   }
