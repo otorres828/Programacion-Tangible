@@ -218,7 +218,8 @@ void moveHbot(int stepsX, int stepsY, int motorSpeedRpm) {
 
 void doHoming() {
   Serial.println("Iniciando Homing (H-Bot)...");
-  const int steps = STEPS_PER_REVOLUTION / 2;
+  const int steps = 50;
+  // const int steps = STEPS_PER_REVOLUTION / 2;
 
   // Mover el Eje X (ambos motores en la misma dirección)
   Serial.println("Homing Eje X (moviendo izquierda)...");
@@ -227,7 +228,7 @@ void doHoming() {
     moveHbot(-steps, 0, HOMING_SPEED_RPM);
   }
   Serial.println("Final de carrera X alcanzado.");
-  moveHbot(10, 0, HOMING_SPEED_RPM);
+  moveHbot(steps - 20, 0, HOMING_SPEED_RPM);
 
   // Mover el Eje Y (motores en direcciones opuestas)
   Serial.println("Homing Eje Y (moviendo abajo)...");
@@ -236,7 +237,7 @@ void doHoming() {
     moveHbot(steps, -1, HOMING_SPEED_RPM);
   }
   Serial.println("Final de carrera Y alcanzado.");
-  moveHbot(0, 10, HOMING_SPEED_RPM);
+  moveHbot(0, steps - 20, HOMING_SPEED_RPM);
 
   Serial.println("Homing Completo.");
 }
