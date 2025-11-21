@@ -12,14 +12,12 @@
 SoftwareSerial bluetoothSerial(10, 11); // RX, TX para Bluetooth (conectado a TX, RX del CNC)
 
 // --- Opciones de detección de conexión Bluetooth ---
-// Si tu módulo HC-05 tiene el pin STATE conectado al Arduino, pon el número de pin aquí.
-#define BT_STATE_PIN 12
+#define BT_STATE_PIN A2
 
 // Variables de estado para detección
 unsigned long lastBtReceiveMillis = 0;
 bool btConnected = false; // estado lógico (basado en STATE pin o en actividad)
-// Bandera para evitar ejecutar homing más de una vez por conexión
-bool homingDone = false;
+bool homingDone = false; // Bandera para evitar ejecutar homing más de una vez por conexión
 
 // Variables para debounce del pin STATE
 int btRawLast = LOW;
@@ -29,6 +27,10 @@ const unsigned long BT_STATE_DEBOUNCE_MS = 200; // tiempo de debounce para pin S
 
 // --- Pines para SoftSerial del DFPlayer Mini ---
 // SoftwareSerial myMp3Serial(12, 13); // RX, TX para DFPlayer (conectado a TX, RX del DFPlayer)
+
+// Objeto del DFPlayer Mini (DFRobotDFPlayerMini)
+DFRobotDFPlayerMini mp3;
+bool mp3Ok = false; // indica si el DFPlayer fue inicializado correctamente
 
 // --- Definiciones para los motores 28BYJ-48 con ULN2003 ---
 // Motor 1 (izquierda)
@@ -48,9 +50,6 @@ const int STEPS_PER_REVOLUTION = 2048;
 // --- Definición de pines para Finales de Carrera ---
 #define ENDSTOP_X_PIN A0 // Pin para el final de carrera del Eje X
 #define ENDSTOP_Y_PIN A1 // Pin para el final de carrera del Eje Y
-
-// --- Objeto del DFPlayer Mini ---
-// DFRobotDFPlayerMini mp3;
 
 // --- Velocidad de los motores ---
 const int MOTOR_SPEED_RPM = 12; // RPMs (ajusta según tus necesidades)
@@ -80,13 +79,14 @@ const int NUM_STEPS_SEQUENCE = 4;
 void setMotorPins(int in1, int in2, int in3, int in4, int stepIndex);
 void moveHbot(int stepsX, int stepsY, int motorSpeedRpm);
 void doHoming();
-// void playInstructionAudio(ActionType action);
+void playInstructionAudio(ActionType action);
 void executeAction(ActionType action);
 
 // --- SETUP Y LOOP ---
 void setup() {
 
-  Serial.begin(9600);
+  // iniciar ambos SoftSerial
+  Serial.begin(9600); // Inicializar puerto Serial para Monitor Serial
   bluetoothSerial.begin(9600);
   Serial.println("CNC Esclavo Iniciado.");
 
@@ -94,12 +94,12 @@ void setup() {
   pinMode(BT_STATE_PIN, INPUT);
   int s = digitalRead(BT_STATE_PIN);
   btConnected = (s == HIGH);
+
   // Inicializar debounce/estados
   btRawLast = s;
   btStableState = s;
   btLastDebounceTime = millis();
   Serial.print("BT_STATE_PIN inicial: "); Serial.println(s);
-  
 
   // Configurar pines de motores
   pinMode(IN1_M1, OUTPUT);
@@ -115,21 +115,12 @@ void setup() {
   pinMode(ENDSTOP_X_PIN, INPUT_PULLUP);
   // pinMode(ENDSTOP_Y_PIN, INPUT_PULLUP);
 
-  // Iniciar módulo MP3
-  // myMp3Serial.begin(9600);
-  // Verificar si el módulo MP3 está conectado
-  // if (!mp3.begin(myMp3Serial)) {
-  //   Serial.println(F("No se pudo inicializar DFPlayer. Revisa las conexiones."));
-  //   while(true); // Detener el programa si no se inicializa
-  // }
-  // Serial.println(F("DFPlayer Mini inicializado."));
-  // mp3.volume(20); // Ajustar volumen (0-30)
 
-  
-  Serial.println("Esperando conexión Bluetooth para realizar homing...");
+  Serial.println("FINAL DE LA CONFIGURACION INICIAL...");
 }
 
 void loop() {
+
 
   // Leer pin STATE con debounce
   int raw = digitalRead(BT_STATE_PIN);
@@ -137,9 +128,13 @@ void loop() {
       btLastDebounceTime = millis();
       btRawLast = raw;
   }
+
   if (millis() - btLastDebounceTime > BT_STATE_DEBOUNCE_MS) {
+
+
       // El estado se considera estable
       if (raw != btStableState) {
+          Serial.println("imprimiendo loop...");
         btStableState = raw;
         if (btStableState == HIGH && !btConnected) {
           btConnected = true;
@@ -157,6 +152,7 @@ void loop() {
   }
   
   if (bluetoothSerial.available()) {
+
     int receivedAction = bluetoothSerial.parseInt();
     while (bluetoothSerial.available()) {
       bluetoothSerial.read();
@@ -233,9 +229,9 @@ void doHoming() {
   // Mover el Eje Y (motores en direcciones opuestas)
   Serial.println("Homing Eje Y (moviendo abajo)...");
   // playInstructionAudio(MOVER_ABAJO);
-  while (digitalRead(ENDSTOP_Y_PIN) == HIGH) {
-    moveHbot(steps, -1, HOMING_SPEED_RPM);
-  }
+  // while (digitalRead(ENDSTOP_Y_PIN) == HIGH) {
+  //   moveHbot(steps, -1, HOMING_SPEED_RPM);
+  // }
   Serial.println("Final de carrera Y alcanzado.");
   moveHbot(0, steps - 20, HOMING_SPEED_RPM);
 
@@ -252,11 +248,13 @@ void playInstructionAudio(ActionType action) {
     case MELODIA_1:       trackNumber = 5; break;
     default:              return;
   }
-  // mp3.play(trackNumber);
+  mp3.play(trackNumber);
+  // Pequeño retardo para permitir comenzar la reproducción
   delay(100);
 }
 
 void executeAction(ActionType action) {
+  
   // playInstructionAudio(action);
 
   const int steps = STEPS_PER_REVOLUTION / 2;

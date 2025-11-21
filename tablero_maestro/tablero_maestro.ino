@@ -57,8 +57,8 @@ const int BRILLO_20_PORCIENTO  = 819;  // 20% de 4095
 const int BRILLO_100_PORCIENTO = 4095; // LED al máximo brillo
 
 // ---  VARIABLES GLOBALES PARA LA MÁQUINA DE ESTADOS Y BOTÓN ---
-enum SystemState { STATE_IDLE, STATE_RUNNING, STATE_PAUSED };
-SystemState estadoSistemaActual = STATE_IDLE;
+enum SystemState { ESTADO_LEER, ESTADO_CORRER, ESTADO_PAUSA, ESTADO_REINICIO };
+SystemState estadoSistemaActual = ESTADO_LEER;
 int actualInstruccionIndex = 0; // Índice de la instrucción actual en la secuencia principal (0-9)
 
 // Variables para el manejo del botón (Debouncing y Pulsación Larga)
@@ -121,15 +121,29 @@ void loop() {
   botonPulsaciones(); // Procesa las entradas del botón en cada ciclo del loop
 
   switch (estadoSistemaActual) {
-    case STATE_IDLE:
-      // Cuando está en IDLE, sigue leyendo las fichas para actualizar los LEDs al 20%
-      // y prepararse para el inicio.
+    case ESTADO_LEER:
+    case ESTADO_PAUSA:
+      // Cuando está en LEER, sigue leyendo las fichas para actualizar los LEDs al 20%  y prepararse para el inicio.
+      // En el estado PAUSA, no se ejecutan nuevas acciones de movimiento.
       leerTodasColumnas();
       copiarArrays();
-      // Los LEDs al 20% son manejados dentro de copiarArrays o justo después, como ya lo tienes.
       break;
 
-    case STATE_RUNNING:
+    case ESTADO_REINICIO:
+      // Estado temporal para realizar el reinicio lógico del CNC.
+      // Enviar el dígito 7 (MELODIA_1 según el enum) al CNC por Bluetooth.
+      Serial.println("Estado REINICIO: enviando '7' al CNC para reinicio/accion.");
+      mySerial.println(7); // envía 7, el CNC ejecutará su caso DO_HOMMING
+      // Dar un momento para que el mensaje salga y el esclavo lo procese
+      delay(100);
+      // Volver a estado de lectura (IDLE) y asegurar que se vuelva a leer fichas
+      estadoSistemaActual = ESTADO_LEER;
+      // Reiniciar índice y tiempos por si se desea iniciar después
+      actualInstruccionIndex = 0;
+      lastActionExecutionTime = millis();
+      break;
+
+    case ESTADO_CORRER:
 
       // Si la secuencia está corriendo y ha pasado suficiente tiempo desde la última acción
       if (millis() - lastActionExecutionTime >= DELAY_POR_INSTRUCCION) {
@@ -143,7 +157,7 @@ void loop() {
 
           // La secuencia principal ha terminado
           Serial.println("Secuencia principal finalizada.");
-          estadoSistemaActual = STATE_IDLE; // Vuelve al estado IDLE
+          estadoSistemaActual = ESTADO_LEER; // Vuelve al estado IDLE
           actualInstruccionIndex = 0; // Reinicia el índice para la próxima ejecución
 
           for (int i = 0; i < NUM_LEDS; i++) {
@@ -155,18 +169,12 @@ void loop() {
 
       break;
 
-    case STATE_PAUSED:
+   
 
-        // En el estado PAUSED, no se ejecutan nuevas acciones de movimiento.
-        // Puedes optar por seguir leyendo las fichas para que los LEDs sigan reflejando las presentes al 20%.
-        leerTodasColumnas();
-        copiarArrays();
-        break;
+  }
 
-      }
-
-    // Pequeña pausa para no saturar el serial 
-    delay(10);
+  // Pequeña pausa para no saturar el serial 
+  delay(10);
   
 }
 
@@ -190,17 +198,17 @@ void botonPulsaciones() {
     } else if (currentButtonReading == HIGH && lastButtonReading == LOW) { // Botón liberado (flanco de subida)
       if (!longPressTriggered) { // Si no fue una pulsación larga (ya manejada)
         // Esto es una PULSACIÓN CORTA (Iniciar/Pausar/Reanudar)
-        if (estadoSistemaActual == STATE_IDLE) {
+        if (estadoSistemaActual == ESTADO_LEER) {
           Serial.println("Boton: INICIO de secuencia.");
-          estadoSistemaActual = STATE_RUNNING;
+          estadoSistemaActual = ESTADO_CORRER;
           actualInstruccionIndex = 0; // Iniciar desde la primera instrucción
           lastActionExecutionTime = millis(); // Preparar el temporizador para la primera acción
-        } else if (estadoSistemaActual == STATE_RUNNING) {
+        } else if (estadoSistemaActual == ESTADO_CORRER) {
           Serial.println("Boton: PAUSA de secuencia.");
-          estadoSistemaActual = STATE_PAUSED;
-        } else if (estadoSistemaActual == STATE_PAUSED) {
+          estadoSistemaActual = ESTADO_PAUSA;
+        } else if (estadoSistemaActual == ESTADO_PAUSA) {
           Serial.println("Boton: REANUDAR secuencia.");
-          estadoSistemaActual = STATE_RUNNING;
+          estadoSistemaActual = ESTADO_CORRER;
           lastActionExecutionTime = millis(); // Re-preparar el temporizador para reanudar
         }
       }
@@ -212,19 +220,18 @@ void botonPulsaciones() {
     if ((millis() - buttonPressStartTime) >= LONG_PRESS_THRESHOLD) {
       Serial.println("Boton: REINICIO COMPLETO (pulsacion larga).");
       longPressTriggered = true; // Marcar como manejado para que no se active de nuevo al soltar
-      estadoSistemaActual = STATE_IDLE; // Reiniciar el sistema al estado IDLE
+      // Pasar a un estado de reinicio que se encargará de notificar al CNC vía Bluetooth
+      estadoSistemaActual = ESTADO_REINICIO;
       actualInstruccionIndex = 0; // Reiniciar progreso de la secuencia
-
-      // Opcional: Re-leer todas las fichas y asegurar LEDs a OFF/20%
-      leerTodasColumnas();
-      copiarArrays();
-      // Asegurarse de que todos los LEDs del PCA9685 se apaguen por completo (serán luego 20% por lectura)
+      // Asegurar LEDs al 20% inmediatamente
       for (int i = 0; i < NUM_LEDS; i++) {
         setBrilloLeds(i, BRILLO_20_PORCIENTO);
       }
     }
   }
+
   lastButtonReading = currentButtonReading; // Guardar el estado actual para la próxima iteración
+
 }
 
 // -------------------------------------------------------------------------
@@ -260,7 +267,7 @@ void leerTodasColumnas() {
   }
 
   // 2. Leer del tercer esclavo (bloque de control), con 4 resistencias
-  int blockControlSlaveAddress = SLAVE_ADDRESSES[2]; // El tercer esclavo
+  int blockControlSlaveAddress = SLAVE_ADDRESSES[2];    // El tercer esclavo
   int floatBloqueControl = 4;                           // El bloque de control tiene 4 resistencias
   int bytesToRequest = floatBloqueControl * sizeof(float);
 
