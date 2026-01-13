@@ -21,7 +21,7 @@ const int SLAVE_ADDRESSES[] = { 0x01, 0x02, 0x03 };
 // Arrays para almacenar los datos
 float allResistances[12];         // Almacena todas las 12 resistencias leídas
 float instruccionesColumnas[8];  // Las primeras 8 instrucciones (de las 2 columnas)
-float bloqueControl[4];           // El bloque de control (las últimas 4 posiciones)
+float bloqueControl[3];           // El bloque de control (las últimas 4 posiciones)
 
 // --- DEFINICIONES DE ACCIONES ---
 enum ActionType {
@@ -48,7 +48,7 @@ int robotY = 0;  // Posición actual en Y (fila de la cuadrícula 0-4)
 Adafruit_PWMServoDriver pwm = Adafruit_PWMServoDriver(0x40, Wire);
 
 // Define el número total de LEDs que vas a controlar
-const int NUM_LEDS = 12; // 8 instrucciones de columnas + 4 de bloque de control
+const int NUM_LEDS = 11; // 8 instrucciones de columnas + 3 de bloque de control
 
 // Define los valores de brillo (PWM)
 // El PCA9685 tiene una resolución de 12 bits, lo que significa un rango de 0 a 4095.
@@ -268,7 +268,7 @@ void leerTodasColumnas() {
 
   // 2. Leer del tercer esclavo (bloque de control), con 4 resistencias
   int blockControlSlaveAddress = SLAVE_ADDRESSES[2];    // El tercer esclavo
-  int floatBloqueControl = 4;                           // El bloque de control tiene 4 resistencias
+  int floatBloqueControl = 3;                           // El bloque de control tiene 4 resistencias
   int bytesToRequest = floatBloqueControl * sizeof(float);
 
   Wire.requestFrom(blockControlSlaveAddress, bytesToRequest);
@@ -305,8 +305,8 @@ void copiarArrays() {
   for (int i = 0; i < 8; i++) {
     instruccionesColumnas[i] = allResistances[i];
   }
-  // Copia las últimas 4 posiciones a bloqueControl (el bloque de control)
-  for (int i = 0; i < 4; i++) {
+  // Copia las últimas 3 posiciones a bloqueControl (el bloque de control)
+  for (int i = 0; i < 3; i++) {
     bloqueControl[i] = allResistances[8 + i]; // Empieza en el índice 8
   }
 }

@@ -8,7 +8,7 @@
 #include <Wire.h>  // Librería para comunicación I2C
 
 // Dirección I2C ÚNICA para cada Arduino de columna.
-#define I2C_SLAVE_ADDRESS 0x01  // <--- COLUMNA 1 (Cambiar para otros esclavos)
+#define I2C_SLAVE_ADDRESS 0x03  // <--- SUBRUTINAS
 
 // --- DEFINICIONES DE PINES Y VALORES DE REFERENCIA ---
 
@@ -20,7 +20,6 @@
 #define dividerInput1 A1
 #define dividerInput2 A2
 #define dividerInput3 A3
-#define dividerInput4 A6
 
 // Valor de la resistencia de referencia conocida (R1) en Ohmios (Ω).
 #define RC 1000  // Resistencia de Referencia = 1 kOhmio (1000 Ohms)
@@ -29,8 +28,8 @@
 // esto debería ser 5.0. Si lo alimentas a 3.3V o usas una referencia externa de 3.3V, entonces 3.3 es correcto.
 const float ADC_REFERENCE_VOLTAGE = 3.3;  // Voltaje de referencia del ADC del Arduino
 
-float measuredResistances[4];  // Array para guardar Rx1, Rx2, Rx3, Rx4
-float valueInstruction[4];   // Array el valor de las instrucciones
+float measuredResistances[3];  // Array para guardar Rx1, Rx2, Rx3
+float valueInstruction[3];   // Array el valor de las instrucciones
 
 // --- UNIÓN PARA CONVERTIR FLOAT A BYTES Y VICEVERSA ---
 // Esto es necesario porque Wire.write() y Wire.read() operan con bytes.
@@ -59,9 +58,10 @@ void setup() {
   // Registra la función que se llamará cuando el Maestro solicite datos.
   Wire.onRequest(requestEvent);
 
+
   // Mensajes iniciales informativos en el Monitor Serial.
   Serial.println("----------------------------------");
-  Serial.println("  Medidor de 5 Resistencias Activo ");
+  Serial.println("  Medidor de 3 Instrucciones Sub Rutinas ");
   Serial.println("----------------------------------");
   Serial.print("Voltaje de referencia ADC: ");
   Serial.print(ADC_REFERENCE_VOLTAGE, 1);
@@ -144,7 +144,7 @@ void printResistance(float resistance, int rxNumber) {
 //obtiene el valor de cada instruccion
 void getValorInstruction(){
 
-  for (int i = 0; i < 4; i++) {
+  for (int i = 0; i < 3; i++) {
    
     if(measuredResistances[i]>0){
        valueInstruction[i] = mapResistanceToAction(measuredResistances[i]);  // Mapea la resistencia a un tipo de acción
@@ -184,10 +184,10 @@ ActionType mapResistanceToAction(float resistanceValue) {
 // Esta función se llama automáticamente cuando el Arduino Maestro solicita datos.
 void requestEvent() {
   // Convertir cada float en el array a 4 bytes y enviarlos.
-  // El Maestro espera 4 floats (4 * 4 bytes/float = 16 bytes).
-  for (int i = 0; i < 4; i++) {
-    FloatBytes fb;
+  // El Maestro espera 3 floats (3 * 4 bytes/float = 12 bytes).
 
+  for (int i = 0; i < 3; i++) {
+    FloatBytes fb;
     //nos aseguramos que solo mandemos isntancias válidas
     // Si la resistencia medida es válida (mayor que 0), enviamos su valor
     if(valueInstruction[i]>0){
@@ -220,9 +220,6 @@ void loop() {
   measuredResistances[2] = getResistanceValue(avgDividerVoltage_Rx3, avgInputVoltage);  // v_out, v_in
   printResistance(measuredResistances[2], 3);
 
-  float avgDividerVoltage_Rx4 = getAverageVoltage(dividerInput4);
-  measuredResistances[3] = getResistanceValue(avgDividerVoltage_Rx4, avgInputVoltage);  // v_out, v_in
-  printResistance(measuredResistances[3], 4);
 
   getValorInstruction();
 
