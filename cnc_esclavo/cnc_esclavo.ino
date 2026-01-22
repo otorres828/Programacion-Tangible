@@ -13,6 +13,8 @@ SoftwareSerial bluetoothSerial(10, 11); // RX, TX para Bluetooth (conectado a TX
 
 // --- Opciones de detección de conexión Bluetooth ---
 #define BT_STATE_PIN A2
+const int ledVerde = A3;  // LED de Conectado
+const int ledRojo = A4;   // LED de Desconectado
 
 // Variables de estado para detección
 unsigned long lastBtReceiveMillis = 0;
@@ -95,6 +97,10 @@ void setup() {
   int s = digitalRead(BT_STATE_PIN);
   btConnected = (s == HIGH);
 
+  //leds que indican conexion con bluetooth
+  pinMode(ledVerde, OUTPUT);
+  pinMode(ledRojo, OUTPUT);
+
   // Inicializar debounce/estados
   btRawLast = s;
   btStableState = s;
@@ -127,6 +133,24 @@ void loop() {
   if (raw != btRawLast) {
       btLastDebounceTime = millis();
       btRawLast = raw;
+  }
+
+  bool estadoActual = digitalRead(BT_STATE_PIN);
+
+  // Lógica de cambio de estado
+  if (estadoActual == HIGH && !conectado) {
+    // SE CONECTÓ
+    digitalWrite(ledVerde, HIGH);
+    digitalWrite(ledRojo, LOW);
+    Serial.println(">>> ESTADO: CONECTADO <<<");
+    conectado = true;
+  } 
+  else if (estadoActual == LOW && conectado) {
+    // SE DESCONECTÓ
+    digitalWrite(ledVerde, LOW);
+    digitalWrite(ledRojo, HIGH);
+    Serial.println(">>> ESTADO: DESCONECTADO <<<");
+    conectado = false;
   }
 
   if (millis() - btLastDebounceTime > BT_STATE_DEBOUNCE_MS) {

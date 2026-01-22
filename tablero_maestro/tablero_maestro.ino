@@ -75,6 +75,12 @@ const unsigned long LONG_PRESS_THRESHOLD = 3000; // 3 segundos para pulsación l
 unsigned long lastActionExecutionTime = 0;
 const unsigned long DELAY_POR_INSTRUCCION = 3000; // 3 segundo de retraso entre la ejecución de acciones
 
+// --- Opciones de detección de conexión Bluetooth ---
+const BT_STATE_PIN A2
+const int ledVerde = A0;  // LED de Conectado
+const int ledRojo = A1;   // LED de Desconectado
+
+
 // --- DECLARACIÓN DE FUNCIONES---
 void leerTodasColumnas();                                  // Leer los datos de los 3 esclavos I2C (2 columnas y bloque de control)
 void copiarArrays();                                       // Copiar los datos leídos a las variables globales
@@ -178,6 +184,29 @@ void loop() {
   
 }
 
+// ------------------------------------------------------------------------
+// FUNCION MANEJO DE LED BLUETOOTH
+// ------------------------------------------------------------------------
+void manejoLedBT(){
+  
+  bool estadoActual = digitalRead(BT_STATE_PIN);
+
+  // Lógica de cambio de estado
+  if (estadoActual == HIGH && !conectado) {
+    // SE CONECTÓ
+    digitalWrite(ledVerde, HIGH);
+    digitalWrite(ledRojo, LOW);
+    Serial.println(">>> ESTADO: CONECTADO <<<");
+    conectado = true;
+  } 
+  else if (estadoActual == LOW && conectado) {
+    // SE DESCONECTÓ
+    digitalWrite(ledVerde, LOW);
+    digitalWrite(ledRojo, HIGH);
+    Serial.println(">>> ESTADO: DESCONECTADO <<<");
+    conectado = false;
+  }
+}
 // -------------------------------------------------------------------------
 // FUNCIONES DE MANEJO DEL BOTÓN
 // -------------------------------------------------------------------------
