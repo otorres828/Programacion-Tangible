@@ -76,9 +76,21 @@ unsigned long lastActionExecutionTime = 0;
 const unsigned long DELAY_POR_INSTRUCCION = 3000; // 3 segundo de retraso entre la ejecución de acciones
 
 // --- Opciones de detección de conexión Bluetooth ---
-const BT_STATE_PIN A2
+#define BT_STATE_PIN A2
 const int ledVerde = A0;  // LED de Conectado
 const int ledRojo = A1;   // LED de Desconectado
+bool conectado = false;   // LED state helper
+
+// Variables de estado para detección
+unsigned long lastBtReceiveMillis = 0;
+bool btConnected = false; // estado lógico (basado en STATE pin o en actividad)
+bool homingDone = false;  // Bandera para evitar ejecutar homing más de una vez por conexión
+
+// Variables para debounce del pin STATE
+int btRawLast = LOW;
+int btStableState = LOW;
+unsigned long btLastDebounceTime = 0;
+const unsigned long BT_STATE_DEBOUNCE_MS = 200; // tiempo de debounce para pin STATE (ms)
 
 
 // --- DECLARACIÓN DE FUNCIONES---
@@ -91,6 +103,8 @@ void ejecutarBlockControl();                               // Ejecutar la lógic
 void setBrilloLeds(int ledIndex, int brightness);          // Establecer el brillo de un LED
 bool validarPosicionXY(int x, int y);                      // Validar si una posición (x,y) es válida en la cuadrícula
 String getAccionText(ActionType action);                   // Obtener el texto descriptivo de una acción - Lo usamos para debuguear
+
+int manejoLedBT(int stableState);
 
 void setup() {
 
@@ -124,14 +138,52 @@ void setup() {
 
   mySerial.begin(9600); // Colocamos el módulo bluetooth en 9600
   mySerial.print(99);   // Mandamos indicacion de reinicio al CNC esclavo
+
+  // Inicializar estado BT (lectura inicial + debounce vars + LEDs)
+  int s = digitalRead(BT_STATE_PIN);
+  btConnected = (s == HIGH);
+  btRawLast = s;
+  btStableState = s;
+  btLastDebounceTime = millis();
+  manejoLedBT(s);
 }
 
 void loop() {
+  // Leer pin STATE con debounce
+  int raw = digitalRead(BT_STATE_PIN);
+  if (raw != btRawLast) {
+    btLastDebounceTime = millis();
+    btRawLast = raw;
+  }
 
-  if(manejoLedBT()==0){
-    // si se desconecta e lbluetooth no deberia de mandar mas instrucciones
+  if (millis() - btLastDebounceTime > BT_STATE_DEBOUNCE_MS) {
+    // El estado se considera estable
+    if (raw != btStableState) {
+      btStableState = raw;
+      // Actualizar LEDs al cambiar el estado estable
+      manejoLedBT(btStableState);
+      if (btStableState == HIGH && !btConnected) {
+        btConnected = true;
+        Serial.println("Bluetooth MAESTRO: conectado (STATE pin). Enviando homing...");
+        if (!homingDone) {
+          // Enviar comando de homing al esclavo al reconectar
+          mySerial.println(7); // DO_HOMMING
+          homingDone = true;
+        }
+      } else if (btStableState == LOW && btConnected) {
+        btConnected = false;
+        homingDone = false; // permitir homing en la próxima conexión
+        Serial.println("Bluetooth MAESTRO: desconectado (STATE pin).");
+        // Limpiar buffer BT saliente/entrante
+        while (mySerial.available()) { mySerial.read(); }
+      }
+    }
+  }
+
+  // si se desconecta el bluetooth no deberia de mandar mas instrucciones
+  if (!btConnected) {
     return;
-  } 
+  }
 
   botonPulsaciones(); // Procesa las entradas del botón en cada ciclo del loop
 
@@ -194,30 +246,24 @@ void loop() {
 }
 
 // ------------------------------------------------------------------------
-// FUNCION MANEJO DE LED BLUETOOTH
+// FUNCION MANEJO DE LED BLUETOOTH (usa estado DEBOUNCEADO)
 // ------------------------------------------------------------------------
-int manejoLedBT(){
-  
-  bool estadoActual = digitalRead(BT_STATE_PIN);
-
-  // Lógica de cambio de estado
-  if (estadoActual == HIGH && !conectado) {
+int manejoLedBT(int stableState){
+  if (stableState == HIGH && !conectado) {
     // SE CONECTÓ
     digitalWrite(ledVerde, HIGH);
     digitalWrite(ledRojo, LOW);
     Serial.println(">>> ESTADO: CONECTADO <<<");
     conectado = true;
-    return 1;
   } 
-  else if (estadoActual == LOW && conectado) {
+  else if (stableState == LOW && conectado) {
     // SE DESCONECTÓ
     digitalWrite(ledVerde, LOW);
     digitalWrite(ledRojo, HIGH);
     Serial.println(">>> ESTADO: DESCONECTADO <<<");
     conectado = false;
-    return 0;
   }
-  return 1;
+  return conectado ? 1 : 0;
 }
 // -------------------------------------------------------------------------
 // FUNCIONES DE MANEJO DEL BOTÓN
