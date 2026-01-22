@@ -190,20 +190,25 @@ void loop() {
 // FUNCION MANEJO DE LED BLUETOOTH
 // ------------------------------------------------------------------------
 int manejoLedBT(int stableState){
-  // Usar el estado ya DEBOUNCEADO para manejar LEDs y cambios
-  if (stableState == HIGH && !conectado) {
-    // SE CONECTÓ
+  bool prev = conectado;
+  // Set LEDs deterministically based on debounced state
+  if (stableState == HIGH) {
     digitalWrite(ledVerde, HIGH);
     digitalWrite(ledRojo, LOW);
-    Serial.println(">>> ESTADO: CONECTADO <<<");
     conectado = true;
-  } else if (stableState == LOW && conectado) {
-    // SE DESCONECTÓ
+  } else {
     digitalWrite(ledVerde, LOW);
     digitalWrite(ledRojo, HIGH);
-    Serial.println(">>> ESTADO: DESCONECTADO <<<");
     conectado = false;
   }
+
+  // Log only on transitions
+  if (conectado && !prev) {
+    Serial.println(">>> ESTADO: CONECTADO <<<");
+  } else if (!conectado && prev) {
+    Serial.println(">>> ESTADO: DESCONECTADO <<<");
+  }
+
   return conectado ? 1 : 0;
 }
 
