@@ -15,6 +15,7 @@ SoftwareSerial bluetoothSerial(10, 11); // RX, TX para Bluetooth (conectado a TX
 #define BT_STATE_PIN A2
 const int ledVerde = A3;  // LED de Conectado
 const int ledRojo = A4;   // LED de Desconectado
+bool conectado = false;
 
 // Variables de estado para detección
 unsigned long lastBtReceiveMillis = 0;
@@ -135,30 +136,14 @@ void loop() {
       btRawLast = raw;
   }
 
-  bool estadoActual = digitalRead(BT_STATE_PIN);
-
-  // Lógica de cambio de estado
-  if (estadoActual == HIGH && !conectado) {
-    // SE CONECTÓ
-    digitalWrite(ledVerde, HIGH);
-    digitalWrite(ledRojo, LOW);
-    Serial.println(">>> ESTADO: CONECTADO <<<");
-    conectado = true;
-  } 
-  else if (estadoActual == LOW && conectado) {
-    // SE DESCONECTÓ
-    digitalWrite(ledVerde, LOW);
-    digitalWrite(ledRojo, HIGH);
-    Serial.println(">>> ESTADO: DESCONECTADO <<<");
-    conectado = false;
-  }
+  manejoLedBT();
 
   if (millis() - btLastDebounceTime > BT_STATE_DEBOUNCE_MS) {
 
 
       // El estado se considera estable
       if (raw != btStableState) {
-          Serial.println("imprimiendo loop...");
+        Serial.println("imprimiendo loop...");
         btStableState = raw;
         if (btStableState == HIGH && !btConnected) {
           btConnected = true;
@@ -191,6 +176,32 @@ void loop() {
       executeAction(action);
 
     } 
+  }
+}
+
+// ------------------------------------------------------------------------
+// FUNCION MANEJO DE LED BLUETOOTH
+// ------------------------------------------------------------------------
+int manejoLedBT(){
+  
+  bool estadoActual = digitalRead(BT_STATE_PIN);
+
+  // Lógica de cambio de estado
+  if (estadoActual == HIGH && !conectado) {
+    // SE CONECTÓ
+    digitalWrite(ledVerde, HIGH);
+    digitalWrite(ledRojo, LOW);
+    Serial.println(">>> ESTADO: CONECTADO <<<");
+    conectado = true;
+    return 1;
+  } 
+  else if (estadoActual == LOW && conectado) {
+    // SE DESCONECTÓ
+    digitalWrite(ledVerde, LOW);
+    digitalWrite(ledRojo, HIGH);
+    Serial.println(">>> ESTADO: DESCONECTADO <<<");
+    conectado = false;
+    return 0;
   }
 }
 

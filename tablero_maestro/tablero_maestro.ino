@@ -96,6 +96,10 @@ void setup() {
 
   Serial.begin(2400);  // Para comunicación con el Monitor Serial del PC
 
+  pinMode(BT_STATE_PIN, INPUT);
+  pinMode(ledVerde, OUTPUT);
+  pinMode(ledRojo, OUTPUT);
+
   while (!Serial) {
     ;  // wait for serial port to connect. Needed for native USB port only
   }
@@ -124,6 +128,8 @@ void setup() {
 
 void loop() {
 
+  manejoLedBT(); // Maneja el estado de los LEDs de Bluetooth
+  
   botonPulsaciones(); // Procesa las entradas del botón en cada ciclo del loop
 
   switch (estadoSistemaActual) {
