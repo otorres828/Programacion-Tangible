@@ -128,8 +128,11 @@ void setup() {
 
 void loop() {
 
-  manejoLedBT(); // Maneja el estado de los LEDs de Bluetooth
-  
+  if(manejoLedBT()==0){
+    // si se desconecta e lbluetooth no deberia de mandar mas instrucciones
+    return;
+  } 
+
   botonPulsaciones(); // Procesa las entradas del botón en cada ciclo del loop
 
   switch (estadoSistemaActual) {
@@ -193,7 +196,7 @@ void loop() {
 // ------------------------------------------------------------------------
 // FUNCION MANEJO DE LED BLUETOOTH
 // ------------------------------------------------------------------------
-void manejoLedBT(){
+int manejoLedBT(){
   
   bool estadoActual = digitalRead(BT_STATE_PIN);
 
@@ -204,6 +207,7 @@ void manejoLedBT(){
     digitalWrite(ledRojo, LOW);
     Serial.println(">>> ESTADO: CONECTADO <<<");
     conectado = true;
+    return 1;
   } 
   else if (estadoActual == LOW && conectado) {
     // SE DESCONECTÓ
@@ -211,7 +215,9 @@ void manejoLedBT(){
     digitalWrite(ledRojo, HIGH);
     Serial.println(">>> ESTADO: DESCONECTADO <<<");
     conectado = false;
+    return 0;
   }
+  return 1;
 }
 // -------------------------------------------------------------------------
 // FUNCIONES DE MANEJO DEL BOTÓN

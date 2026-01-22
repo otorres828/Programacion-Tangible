@@ -84,6 +84,7 @@ void moveHbot(int stepsX, int stepsY, int motorSpeedRpm);
 void doHoming();
 void playInstructionAudio(ActionType action);
 void executeAction(ActionType action);
+int manejoLedBT(int stableState);
 
 // --- SETUP Y LOOP ---
 void setup() {
@@ -107,6 +108,8 @@ void setup() {
   btStableState = s;
   btLastDebounceTime = millis();
   Serial.print("BT_STATE_PIN inicial: "); Serial.println(s);
+  // Inicializar LEDs según estado actual
+  manejoLedBT(s);
 
   // Configurar pines de motores
   pinMode(IN1_M1, OUTPUT);
@@ -136,8 +139,6 @@ void loop() {
       btRawLast = raw;
   }
 
-  manejoLedBT();
-
   if (millis() - btLastDebounceTime > BT_STATE_DEBOUNCE_MS) {
 
 
@@ -145,6 +146,8 @@ void loop() {
       if (raw != btStableState) {
         Serial.println("imprimiendo loop...");
         btStableState = raw;
+        // Actualizar LEDs al cambiar el estado estable
+        manejoLedBT(btStableState);
         if (btStableState == HIGH && !btConnected) {
           btConnected = true;
           Serial.println("Bluetooth: conectado (STATE pin). Ejecutando homing...");
@@ -160,49 +163,48 @@ void loop() {
       }
   }
   
-  if (bluetoothSerial.available()) {
+  if (btConnected) {
+    if (bluetoothSerial.available()) {
+      int receivedAction = bluetoothSerial.parseInt();
+      while (bluetoothSerial.available()) {
+        bluetoothSerial.read();
+      }
 
-    int receivedAction = bluetoothSerial.parseInt();
+      Serial.print("Recibido del Maestro: ");
+      Serial.println(receivedAction);
+
+      if (receivedAction > 0) {
+        ActionType action = static_cast<ActionType>(receivedAction);
+        executeAction(action);
+      }
+    }
+  } else {
+    // Si no está conectado, vaciar cualquier dato pendiente y no ejecutar instrucciones
     while (bluetoothSerial.available()) {
       bluetoothSerial.read();
     }
-
-    Serial.print("Recibido del Maestro: ");
-    Serial.println(receivedAction);
-
-    if (receivedAction > 0) {
-
-      ActionType action = static_cast<ActionType>(receivedAction);
-      executeAction(action);
-
-    } 
   }
 }
 
 // ------------------------------------------------------------------------
 // FUNCION MANEJO DE LED BLUETOOTH
 // ------------------------------------------------------------------------
-int manejoLedBT(){
-  
-  bool estadoActual = digitalRead(BT_STATE_PIN);
-
-  // Lógica de cambio de estado
-  if (estadoActual == HIGH && !conectado) {
+int manejoLedBT(int stableState){
+  // Usar el estado ya DEBOUNCEADO para manejar LEDs y cambios
+  if (stableState == HIGH && !conectado) {
     // SE CONECTÓ
     digitalWrite(ledVerde, HIGH);
     digitalWrite(ledRojo, LOW);
     Serial.println(">>> ESTADO: CONECTADO <<<");
     conectado = true;
-    return 1;
-  } 
-  else if (estadoActual == LOW && conectado) {
+  } else if (stableState == LOW && conectado) {
     // SE DESCONECTÓ
     digitalWrite(ledVerde, LOW);
     digitalWrite(ledRojo, HIGH);
     Serial.println(">>> ESTADO: DESCONECTADO <<<");
     conectado = false;
-    return 0;
   }
+  return conectado ? 1 : 0;
 }
 
 void setMotorPins(int in1, int in2, int in3, int in4, int stepIndex) {
