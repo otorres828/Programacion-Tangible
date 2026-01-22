@@ -134,7 +134,6 @@ void setup() {
   Serial.println(" Arduino Central (Maestro I2C) ");
   Serial.println("----------------------------------");
   Serial.println("Iniciando. Esperando lecturas de columnas...");
-  Serial.println("Estado actual: IDLE (esperando boton para iniciar)");
 
   mySerial.begin(9600); // Colocamos el módulo bluetooth en 9600
   mySerial.print(99);   // Mandamos indicacion de reinicio al CNC esclavo
@@ -249,20 +248,26 @@ void loop() {
 // FUNCION MANEJO DE LED BLUETOOTH (usa estado DEBOUNCEADO)
 // ------------------------------------------------------------------------
 int manejoLedBT(int stableState){
-  if (stableState == HIGH && !conectado) {
-    // SE CONECTÓ
+  bool prev = conectado;
+  // Set LEDs deterministically based on debounced state
+  if (stableState == HIGH) {
     digitalWrite(ledVerde, HIGH);
     digitalWrite(ledRojo, LOW);
-    Serial.println(">>> ESTADO: CONECTADO <<<");
     conectado = true;
-  } 
-  else if (stableState == LOW && conectado) {
-    // SE DESCONECTÓ
+  } else {
     digitalWrite(ledVerde, LOW);
     digitalWrite(ledRojo, HIGH);
-    Serial.println(">>> ESTADO: DESCONECTADO <<<");
     conectado = false;
   }
+
+  // Log only on transitions
+  if (conectado && !prev) {
+    Serial.println(">>> ESTADO: CONECTADO <<<");
+    Serial.println("Estado actual: IDLE (esperando boton para iniciar)");
+  } else if (!conectado && prev) {
+    Serial.println(">>> ESTADO: DESCONECTADO <<<");
+  }
+
   return conectado ? 1 : 0;
 }
 // -------------------------------------------------------------------------
