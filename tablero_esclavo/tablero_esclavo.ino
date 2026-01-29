@@ -42,12 +42,12 @@ union FloatBytes {
 
 // --- DEFINICIONES DE ACCIONES ---
 enum ActionType {
-  MOVER_ARRIBA = 1,     // Resistencia 190-220 Ohms                   - 220 ohms
-  MOVER_ABAJO = 2,      // Resistencia 500-810 Ohms                   - 680ohms 
-  MOVER_IZQUIERDA = 3,  // Resistencia 920-1.2k Ohms                  - 1k
-  MOVER_DERECHA = 4,    // Resistencia 1.7k-2.5k Ohms                 - 2k
-  BLOQUE_CONTROL = 5,   // Resistencia 4k-6 Ohms (no invertible)      - 4.7k
-  MELODIA_1 = 6,         // Resistencia 9k-11k Ohms (no invertible)   - 10k
+  MOVER_ARRIBA = 1,     // Resistencia 900-1600 Ohms                   - 1K
+  MOVER_ABAJO = 2,      // Resistencia 170-300 Ohms                    - 220omh 
+  MOVER_IZQUIERDA = 3,  // Resistencia 500-810 Ohms                    - 680ohms
+  MOVER_DERECHA = 4,    // Resistencia 1.7k-2.5k Ohms                  - 2k
+  BLOQUE_CONTROL = 5,   // Resistencia 3k-6k Omhs                      - 4.7k
+  MELODIA_1 = 6,         // Resistencia 9k-11k Ohms                    - 10k
 };
 
 
@@ -61,7 +61,7 @@ void setup() {
 
   // Mensajes iniciales informativos en el Monitor Serial.
   Serial.println("----------------------------------");
-  Serial.println("  Medidor de 5 Resistencias Activo ");
+  Serial.println("  Medidor de 4 Resistencias Activo ");
   Serial.println("----------------------------------");
   Serial.print("Voltaje de referencia ADC: ");
   Serial.print(ADC_REFERENCE_VOLTAGE, 1);
@@ -158,27 +158,32 @@ void getValorInstruction(){
 // Mapea un valor de resistencia a un tipo de acción (no ejecuta, solo clasifica).
 ActionType mapResistanceToAction(float resistanceValue) {
 
-  if (resistanceValue >= 190.0 && resistanceValue <= 250.0) {
-    return MOVER_IZQUIERDA;
-  } else if (resistanceValue >= 500.0 && resistanceValue <= 810.0) {
-    return MOVER_ABAJO;
-  } else if (resistanceValue >= 900.0 && resistanceValue <= 1600.0) {
-    return MOVER_ARRIBA;
-  } else if (resistanceValue >= 1700.0 && resistanceValue <= 2500.0) {
-    return MOVER_DERECHA;
-  } else if (resistanceValue >= 4000.0 && resistanceValue <= 6000.0) {
-    return BLOQUE_CONTROL;
-  } else if (resistanceValue >= 9000.0 && resistanceValue <= 11000.0) {
-    return MELODIA_1;
-  } else if (resistanceValue >= 19000.0 && resistanceValue <= 211000.0) {
-    return MELODIA_1;
-  }
-  // Manejo de errores o valores fuera de rango
+  int range = 0;
+  if (resistanceValue >= 900.0 && resistanceValue <= 1600.0) {
+      return MOVER_ARRIBA;
+  } 
+  else if (resistanceValue >= 130.0 && resistanceValue <= 300.0) {
+      return MOVER_ABAJO;
+  } 
+  else if (resistanceValue >= 500.0 && resistanceValue <= 810.0) {
+      return MOVER_IZQUIERDA;
+  } 
+  else if (resistanceValue >= 1700.0 && resistanceValue <= 2500.0) {
+      return MOVER_DERECHA;
+  } 
+  else if (resistanceValue >= 3000.0 && resistanceValue <= 6000.0) {
+      return bloque_CONTROL;    
+  } 
+  else if (resistanceValue >= 9000.0 && resistanceValue <= 11000.0) {
+      return MELODIA_1;
+  } 
   else if (resistanceValue <= 0) {
-    return (ActionType)-1;  // Valor de error para indicar corto/valor inválido
-  } else {
-    return (ActionType)0;  // Si es un valor positivo pero no cae en ningún rango definido
+      return (ActionType)-1;  // Valor de error para indicar corto/valor inválido
+  } 
+  else {
+      return (ActionType)0;   // Si es un valor positivo pero no cae en ningún rango definido
   }
+
 }
 
 // Esta función se llama automáticamente cuando el Arduino Maestro solicita datos.
