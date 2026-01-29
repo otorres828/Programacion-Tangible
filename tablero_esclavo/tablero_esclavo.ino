@@ -8,7 +8,7 @@
 #include <Wire.h>  // Librería para comunicación I2C
 
 // Dirección I2C ÚNICA para cada Arduino de columna.
-#define I2C_SLAVE_ADDRESS 0x01  // <--- COLUMNA 1 (Cambiar para otros esclavos)
+#define I2C_SLAVE_ADDRESS 0x02  // <--- COLUMNA 1 (Cambiar para otros esclavos)
 
 // --- DEFINICIONES DE PINES Y VALORES DE REFERENCIA ---
 
@@ -171,7 +171,7 @@ ActionType mapResistanceToAction(float resistanceValue) {
       return MOVER_DERECHA;
   } 
   else if (resistanceValue >= 3000.0 && resistanceValue <= 6000.0) {
-      return bloque_CONTROL;    
+      return BLOQUE_CONTROL;    
   } 
   else if (resistanceValue >= 9000.0 && resistanceValue <= 11000.0) {
       return MELODIA_1;
