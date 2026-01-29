@@ -158,7 +158,6 @@ void getValorInstruction(){
 // Mapea un valor de resistencia a un tipo de acción (no ejecuta, solo clasifica).
 ActionType mapResistanceToAction(float resistanceValue) {
 
-  int range = 0;
   if (resistanceValue >= 900.0 && resistanceValue <= 1600.0) {
       return MOVER_ARRIBA;
   } 
