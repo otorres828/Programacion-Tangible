@@ -1,8 +1,8 @@
 // ---------------------------------------------------------------------------------------
 // Código para Arduino Nano Central (MAESTRO I2C) - Archivo Único
-// Solicita datos de 2 Arduinos de columna (Esclavos I2C, 5 resistencias cada uno)
-// y un tercer Arduino (Esclavo I2C, Bloque de Control de 5 resistencias).
-// Consolida los valores de resistencia en un array de 15 posiciones.
+// Solicita datos de 2 Arduinos de columna (Esclavos I2C, 4 resistencias cada uno)
+// y un tercer Arduino (Esclavo I2C, Bloque de Control de 3resistencias).
+// Consolida los valores de resistencia en un array de 11 posiciones.
 // Nota: Utilizamos A4 y A5 para la comunicacion I2C con cada columna y con los LEDS de cada ficha.
 // El movimiento del robot es en direcciones cardinales fijas (arriba, abajo, izquierda, derecha)
 // ---------------------------------------------------------------------------------------
