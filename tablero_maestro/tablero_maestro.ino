@@ -33,7 +33,6 @@ enum ActionType {
   MELODIA_1 = 6,         // Resistencia 9k-11k Ohms (no invertible)   - 10k
 };
 
-
 // --- UNIÓN PARA CONVERTIR FLOAT A BYTES Y VICEVERSA ---
 union FloatBytes {
   float f;    // El valor flotante
