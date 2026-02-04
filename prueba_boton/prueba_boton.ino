@@ -14,7 +14,7 @@ const unsigned long BUTTON_DEBOUNCE_DELAY = 50; // ms
 const unsigned long LONG_PRESS_THRESHOLD = 3000; // ms (3s)
 
 void setup() {
-  Serial.begin(9600);
+  Serial.begin(2400);
   pinMode(BOTON_INICIO, INPUT_PULLUP);
   Serial.println("Prueba boton: listo. Usa el boton conectado a pin 2 (INPUT_PULLUP).");
   Serial.println("Pulsacion corta: INICIO / PAUSA / REANUDAR. Pulsacion larga (3s): REINICIO.");

@@ -68,7 +68,7 @@ bool currentButtonReading = HIGH;
 bool longPressTriggered = false; // Flag para saber si una pulsación larga ya fue manejada
 
 const unsigned long BUTTON_DEBOUNCE_DELAY = 50; // ms de delay para debounce
-const unsigned long LONG_PRESS_THRESHOLD = 3000; // 3 segundos para pulsación larga
+const unsigned long LONG_PRESS_THRESHOLD = 1500; // 1.5 segundos para pulsación larga
 
 // Variable para el retardo no bloqueante entre acciones
 unsigned long lastActionExecutionTime = 0;
@@ -152,6 +152,9 @@ void setup() {
 }
 
 void loop() {
+
+  botonPulsaciones(); return;// Procesa las entradas del botón en cada ciclo del loop
+
   // Leer pin STATE con debounce
   int raw = digitalRead(BT_STATE_PIN);
   if (raw != btRawLast) {
@@ -188,7 +191,6 @@ void loop() {
     return;
   }
 
-  botonPulsaciones(); // Procesa las entradas del botón en cada ciclo del loop
 
   switch (estadoSistemaActual) {
     case ESTADO_LEER:
@@ -321,6 +323,8 @@ void botonPulsaciones() {
       for (int i = 0; i < NUM_LEDS; i++) {
         setBrilloLeds(i, BRILLO_20_PORCIENTO);
       }
+      delay(200);
+      estadoSistemaActual = ESTADO_LEER;
     }
   }
 
@@ -437,6 +441,9 @@ void ejecutarSiguienteInstruccion() {
 
 // Ejecuta una acción específica basada en el ActionType.
 void enviarBluetooth(ActionType action, int globalIndex) {
+  if (!btConnected) {
+    return;
+  }
 
   Serial.print("Instruccion ");
   Serial.print(globalIndex + 1);
