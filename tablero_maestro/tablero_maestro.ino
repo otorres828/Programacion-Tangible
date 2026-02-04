@@ -64,7 +64,7 @@ int actualInstruccionIndex = 0; // Índice de la instrucción actual en la secue
 unsigned long lastButtonStateChangeTime = 0;
 unsigned long buttonPressStartTime = 0;
 bool lastButtonReading = HIGH; //  INPUT_PULLUP, HIGH cuando no está presionado
-bool currentButtonReading;
+bool currentButtonReading = HIGH;
 bool longPressTriggered = false; // Flag para saber si una pulsación larga ya fue manejada
 
 const unsigned long BUTTON_DEBOUNCE_DELAY = 50; // ms de delay para debounce
@@ -144,6 +144,11 @@ void setup() {
   btStableState = s;
   btLastDebounceTime = millis();
   manejoLedBT(s);
+
+  // Evitar inicio falso al arrancar
+  while (digitalRead(BOTON_INICIO) == LOW) { delay(5); }
+  lastButtonReading = HIGH;
+  currentButtonReading = HIGH;
 }
 
 void loop() {
@@ -234,8 +239,8 @@ void loop() {
 
       break;
 
-   
 
+      
   }
 
   // Pequeña pausa para no saturar el serial 
@@ -274,55 +279,52 @@ int manejoLedBT(int stableState){
 // -------------------------------------------------------------------------
 
 void botonPulsaciones() {
-  currentButtonReading = digitalRead(BOTON_INICIO);
+  bool reading = digitalRead(BOTON_INICIO);
 
-  // Detectar cambio de estado para debounce
-  if (currentButtonReading != lastButtonReading) {
+  if (reading != lastButtonReading) {
     lastButtonStateChangeTime = millis();
   }
 
   if ((millis() - lastButtonStateChangeTime) > BUTTON_DEBOUNCE_DELAY) {
-    // El estado del botón es estable
-    if (currentButtonReading == LOW && lastButtonReading == HIGH) { // Botón presionado (flanco de bajada)
-      buttonPressStartTime = millis();
-      longPressTriggered = false; // Reiniciar flag de pulsación larga
-    } else if (currentButtonReading == HIGH && lastButtonReading == LOW) { // Botón liberado (flanco de subida)
-      if (!longPressTriggered) { // Si no fue una pulsación larga (ya manejada)
-        // Esto es una PULSACIÓN CORTA (Iniciar/Pausar/Reanudar)
-        if (estadoSistemaActual == ESTADO_LEER) {
-          Serial.println("Boton: INICIO de secuencia.");
-          estadoSistemaActual = ESTADO_CORRER;
-          actualInstruccionIndex = 0; // Iniciar desde la primera instrucción
-          lastActionExecutionTime = millis(); // Preparar el temporizador para la primera acción
-        } else if (estadoSistemaActual == ESTADO_CORRER) {
-          Serial.println("Boton: PAUSA de secuencia.");
-          estadoSistemaActual = ESTADO_PAUSA;
-        } else if (estadoSistemaActual == ESTADO_PAUSA) {
-          Serial.println("Boton: REANUDAR secuencia.");
-          estadoSistemaActual = ESTADO_CORRER;
-          lastActionExecutionTime = millis(); // Re-preparar el temporizador para reanudar
+    if (reading != currentButtonReading) {
+      currentButtonReading = reading;
+
+      if (currentButtonReading == LOW) {
+        buttonPressStartTime = millis();
+        longPressTriggered = false;
+      } else {
+        if (!longPressTriggered) {
+          if (estadoSistemaActual == ESTADO_LEER) {
+            Serial.println("Boton: INICIO de secuencia.");
+            estadoSistemaActual = ESTADO_CORRER;
+            actualInstruccionIndex = 0; // Iniciar desde la primera instrucción
+            lastActionExecutionTime = millis(); // Preparar el temporizador para la primera acción
+          } else if (estadoSistemaActual == ESTADO_CORRER) {
+            Serial.println("Boton: PAUSA de secuencia.");
+            estadoSistemaActual = ESTADO_PAUSA;
+          } else if (estadoSistemaActual == ESTADO_PAUSA) {
+            Serial.println("Boton: REANUDAR secuencia.");
+            estadoSistemaActual = ESTADO_CORRER;
+            lastActionExecutionTime = millis(); // Re-preparar el temporizador para reanudar
+          }
         }
       }
     }
   }
 
-  // Verificar pulsación larga mientras el botón está mantenido presionado
   if (currentButtonReading == LOW && !longPressTriggered) {
     if ((millis() - buttonPressStartTime) >= LONG_PRESS_THRESHOLD) {
       Serial.println("Boton: REINICIO COMPLETO (pulsacion larga).");
-      longPressTriggered = true; // Marcar como manejado para que no se active de nuevo al soltar
-      // Pasar a un estado de reinicio que se encargará de notificar al CNC vía Bluetooth
+      longPressTriggered = true;
       estadoSistemaActual = ESTADO_REINICIO;
-      actualInstruccionIndex = 0; // Reiniciar progreso de la secuencia
-      // Asegurar LEDs al 20% inmediatamente
+      actualInstruccionIndex = 0;
       for (int i = 0; i < NUM_LEDS; i++) {
         setBrilloLeds(i, BRILLO_20_PORCIENTO);
       }
     }
   }
 
-  lastButtonReading = currentButtonReading; // Guardar el estado actual para la próxima iteración
-
+  lastButtonReading = reading;
 }
 
 // -------------------------------------------------------------------------
