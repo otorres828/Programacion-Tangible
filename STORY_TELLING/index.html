@@ -92,8 +92,18 @@
         }
         @media print {
             .no-print { display: none !important; }
-            body { background: white; padding: 0; }
-            .grid-board { transform: scale(1.5); transform-origin: top left; margin: 40px; }
+            body {
+                background: white;
+                padding: 0;
+                display: flex;
+                justify-content: center;
+                align-items: flex-start;
+            }
+            .grid-board {
+                transform: scale(1.5);
+                transform-origin: top center;
+                margin: 0;
+            }
         }
     </style>
 </head>
