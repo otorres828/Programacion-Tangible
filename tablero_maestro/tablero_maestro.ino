@@ -132,10 +132,10 @@ void setup() {
   Serial.println("----------------------------------");
   Serial.println(" Arduino Central (Maestro I2C) ");
   Serial.println("----------------------------------");
-  Serial.println("Iniciando. Esperando lecturas de columnas...");
+  Serial.println("Esperando conexion por bluetooth...");
 
   mySerial.begin(9600); // Colocamos el módulo bluetooth en 9600
-  mySerial.print(99);   // Mandamos indicacion de reinicio al CNC esclavo
+  mySerial.print(7);   // Mandamos indicacion de reinicio al CNC esclavo
 
   // Inicializar estado BT (lectura inicial + debounce vars + LEDs)
   int s = digitalRead(BT_STATE_PIN);
@@ -153,7 +153,6 @@ void setup() {
 
 void loop() {
 
-  botonPulsaciones(); return;// Procesa las entradas del botón en cada ciclo del loop
 
   // Leer pin STATE con debounce
   int raw = digitalRead(BT_STATE_PIN);
@@ -191,6 +190,7 @@ void loop() {
     return;
   }
 
+  botonPulsaciones();// Procesa las entradas del botón en cada ciclo del loop
 
   switch (estadoSistemaActual) {
     case ESTADO_LEER:
@@ -393,6 +393,17 @@ void leerTodasColumnas() {
       setBrilloLeds(i, BRILLO_OFF);
     }
   }
+    // Imprimir todas las instrucciones leidas
+  Serial.println("-----------------------------------------------------------");
+  Serial.println("Instrucciones leidas:");
+  for (int i = 0; i < NUM_LEDS; i++) {
+    Serial.print("IDX ");
+    Serial.print(i);
+    Serial.print(": ");
+    Serial.println(allResistances[i]);
+  }
+  delay(1000); 
+
 }
 
 // Copiar los valores después de leer todas las columnas a sus arrays específicos
