@@ -123,7 +123,7 @@ void setup() {
 
   // Configurar pines de finales de carrera
   pinMode(ENDSTOP_X_PIN, INPUT_PULLUP);
-  // pinMode(ENDSTOP_Y_PIN, INPUT_PULLUP);
+  pinMode(ENDSTOP_Y_PIN, INPUT_PULLUP);
 
 
   Serial.println("FINAL DE LA CONFIGURACION INICIAL...");
@@ -265,15 +265,20 @@ void doHoming() {
   while (digitalRead(ENDSTOP_X_PIN) == HIGH) {
     moveHbot(-steps, 0, HOMING_SPEED_RPM);
   }
+
+  delay(1000);
   Serial.println("Final de carrera X alcanzado.");
   moveHbot(steps - 20, 0, HOMING_SPEED_RPM);
+  delay(1500);
 
   // Mover el Eje Y (motores en direcciones opuestas)
   Serial.println("Homing Eje Y (moviendo abajo)...");
   // playInstructionAudio(MOVER_ABAJO);
-  // while (digitalRead(ENDSTOP_Y_PIN) == HIGH) {
-  //   moveHbot(steps, -1, HOMING_SPEED_RPM);
-  // }
+  while (digitalRead(ENDSTOP_Y_PIN) == HIGH) {
+    moveHbot(steps, -1, HOMING_SPEED_RPM);
+  }
+
+  delay(1000);
   Serial.println("Final de carrera Y alcanzado.");
   moveHbot(0, steps - 20, HOMING_SPEED_RPM);
 

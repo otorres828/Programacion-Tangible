@@ -31,6 +31,7 @@ enum ActionType {
   MOVER_DERECHA = 4,    // Resistencia 1.7k-2.5k Ohms                 - 2k
   BLOQUE_CONTROL = 5,   // Resistencia 4k-6 Ohms (no invertible)      - 4.7k
   MELODIA_1 = 6,         // Resistencia 9k-11k Ohms (no invertible)   - 10k
+  // DO_HOMMING = 7,         
 };
 
 // --- UNIÓN PARA CONVERTIR FLOAT A BYTES Y VICEVERSA ---
@@ -172,7 +173,7 @@ void loop() {
         Serial.println("Bluetooth MAESTRO: conectado (STATE pin). Enviando homing...");
         if (!homingDone) {
           // Enviar comando de homing al esclavo al reconectar
-          mySerial.println(7); // DO_HOMMING
+          // mySerial.println(7); // DO_HOMMING
           homingDone = true;
         }
       } else if (btStableState == LOW && btConnected) {
@@ -236,13 +237,8 @@ void loop() {
             setBrilloLeds(i, BRILLO_20_PORCIENTO);
           }
         }
-
       }
-
       break;
-
-
-      
   }
 
   // Pequeña pausa para no saturar el serial 
@@ -393,16 +389,23 @@ void leerTodasColumnas() {
       setBrilloLeds(i, BRILLO_OFF);
     }
   }
-    // Imprimir todas las instrucciones leidas
-  Serial.println("-----------------------------------------------------------");
-  Serial.println("Instrucciones leidas:");
-  for (int i = 0; i < NUM_LEDS; i++) {
-    Serial.print("IDX ");
-    Serial.print(i);
-    Serial.print(": ");
-    Serial.println(allResistances[i]);
-  }
-  delay(1000); 
+  // // Imprimir todas las instrucciones leidas
+  // Serial.println("-----------------------------------------------------------");
+  // Serial.println("Instrucciones leidas:");
+  // for (int i = 0; i < NUM_LEDS; i++) {
+  //   Serial.print("IDX ");
+  //   Serial.print(i);
+  //   Serial.print(": ");
+  //   Serial.print(allResistances[i]);
+  //   Serial.print(" -> ");
+  //   if (allResistances[i] > 0) {
+  //     ActionType action = (ActionType)((int)allResistances[i]);+      
+  //     Serial.println(getAccionText(action));
+  //   } else {
+  //     Serial.println("Sin instruccion");
+  //   }
+  // }
+  // delay(1000); Serial.write(12);
 
 }
 
@@ -434,17 +437,22 @@ void ejecutarSiguienteInstruccion() {
 
       if (actualAction == BLOQUE_CONTROL) {
 
-        Serial.print("Instruccion "); Serial.print(actualInstruccionIndex + 1);
+        Serial.println("Instruccion "); Serial.print(actualInstruccionIndex + 1);
         ejecutarBlockControl(); // Esta función es bloqueante.
         
       } else {
+        
         // Para todas las demás acciones (movimiento, melodía)
         enviarBluetooth(actualAction, actualInstruccionIndex);
       
       }
     
 
-  } 
+  }else{
+    Serial.print("Instruccion "); Serial.print(actualInstruccionIndex + 1);
+    Serial.println(": S/I "); 
+
+  }
   // El incremento de actualInstruccionIndex lo maneja el loop()
   // para que pueda pausar y reanudar.
   actualInstruccionIndex++; // Mueve al siguiente índice de instrucción
