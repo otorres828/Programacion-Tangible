@@ -53,7 +53,7 @@ const int NUM_LEDS = 11; // 8 instrucciones de columnas + 3 de bloque de control
 // Define los valores de brillo (PWM)
 // El PCA9685 tiene una resolución de 12 bits, lo que significa un rango de 0 a 4095.
 const int BRILLO_OFF           = 0;    // LED apagado
-const int BRILLO_20_PORCIENTO  = 819;  // 20% de 4095
+const int BRILLO_20_PORCIENTO  = 100;  // 20% de 4095
 const int BRILLO_100_PORCIENTO = 4095; // LED al máximo brillo
 
 // ---  VARIABLES GLOBALES PARA LA MÁQUINA DE ESTADOS Y BOTÓN ---
@@ -73,7 +73,7 @@ const unsigned long LONG_PRESS_THRESHOLD = 1500; // 1.5 segundos para pulsación
 
 // Variable para el retardo no bloqueante entre acciones
 unsigned long lastActionExecutionTime = 0;
-const unsigned long DELAY_POR_INSTRUCCION = 3000; // 3 segundo de retraso entre la ejecución de acciones
+const unsigned long DELAY_POR_INSTRUCCION = 100; // 100 ms de retraso entre la ejecución de acciones
 
 // --- Opciones de detección de conexión Bluetooth ---
 #define BT_STATE_PIN A2
@@ -90,7 +90,7 @@ bool homingDone = false;  // Bandera para evitar ejecutar homing más de una vez
 int btRawLast = LOW;
 int btStableState = LOW;
 unsigned long btLastDebounceTime = 0;
-const unsigned long BT_STATE_DEBOUNCE_MS = 200; // tiempo de debounce para pin STATE (ms)
+const unsigned long BT_STATE_DEBOUNCE_MS = 100; // tiempo de debounce para pin STATE (ms)
 
 
 // --- DECLARACIÓN DE FUNCIONES---
@@ -108,7 +108,7 @@ int manejoLedBT(int stableState);
 
 void setup() {
 
-  Serial.begin(2400);  // Para comunicación con el Monitor Serial del PC
+  Serial.begin(9600);  // Para comunicación con el Monitor Serial del PC
 
   pinMode(BT_STATE_PIN, INPUT);
   pinMode(ledVerde, OUTPUT);
@@ -136,7 +136,6 @@ void setup() {
   Serial.println("Esperando conexion por bluetooth...");
 
   mySerial.begin(9600); // Colocamos el módulo bluetooth en 9600
-  mySerial.print(7);   // Mandamos indicacion de reinicio al CNC esclavo
 
   // Inicializar estado BT (lectura inicial + debounce vars + LEDs)
   int s = digitalRead(BT_STATE_PIN);
@@ -162,7 +161,7 @@ void loop() {
     btRawLast = raw;
   }
 
-  if (millis() - btLastDebounceTime > BT_STATE_DEBOUNCE_MS) {
+  // if ((millis() - btLastDebounceTime) > BT_STATE_DEBOUNCE_MS) {
     // El estado se considera estable
     if (raw != btStableState) {
       btStableState = raw;
@@ -184,7 +183,7 @@ void loop() {
         while (mySerial.available()) { mySerial.read(); }
       }
     }
-  }
+  // }
 
   // si se desconecta el bluetooth no deberia de mandar mas instrucciones
   if (!btConnected) {
@@ -241,8 +240,6 @@ void loop() {
       break;
   }
 
-  // Pequeña pausa para no saturar el serial 
-  delay(10);
   
 }
 
@@ -272,6 +269,7 @@ int manejoLedBT(int stableState){
 
   return conectado ? 1 : 0;
 }
+
 // -------------------------------------------------------------------------
 // FUNCIONES DE MANEJO DEL BOTÓN
 // -------------------------------------------------------------------------
@@ -389,12 +387,12 @@ void leerTodasColumnas() {
       setBrilloLeds(i, BRILLO_OFF);
     }
   }
-  // // Imprimir todas las instrucciones leidas
+  // Imprimir todas las instrucciones leidas
   // Serial.println("-----------------------------------------------------------");
   // Serial.println("Instrucciones leidas:");
   // for (int i = 0; i < NUM_LEDS; i++) {
   //   Serial.print("IDX ");
-  //   Serial.print(i);
+  //   Serial.print(i + 1);
   //   Serial.print(": ");
   //   Serial.print(allResistances[i]);
   //   Serial.print(" -> ");
@@ -405,7 +403,7 @@ void leerTodasColumnas() {
   //     Serial.println("Sin instruccion");
   //   }
   // }
-  // delay(1000); Serial.write(12);
+  // delay(1000);
 
 }
 
@@ -444,11 +442,12 @@ void ejecutarSiguienteInstruccion() {
         
         // Para todas las demás acciones (movimiento, melodía)
         enviarBluetooth(actualAction, actualInstruccionIndex);
-      
+
       }
     
 
   }else{
+
     Serial.print("Instruccion "); Serial.print(actualInstruccionIndex + 1);
     Serial.println(": S/I "); 
 
@@ -460,15 +459,15 @@ void ejecutarSiguienteInstruccion() {
 
 // Ejecuta una acción específica basada en el ActionType.
 void enviarBluetooth(ActionType action, int globalIndex) {
-  if (!btConnected) {
-    return;
-  }
 
   Serial.print("Instruccion ");
   Serial.print(globalIndex + 1);
   Serial.print(": ");
-  Serial.print(getAccionText(action));
+  Serial.println(getAccionText(action));
 
+  if (!btConnected) {
+    return;
+  }
   int nextX = robotX;
   int nextY = robotY;
 
@@ -515,6 +514,7 @@ void enviarBluetooth(ActionType action, int globalIndex) {
     Serial.println(); // Salto de línea para mejor legibilidad en el monitor serial
 
   }
+  delay(3000); //Esperar 3 segundos entre cada instrucción para que el CNC tenga tiempo de ejecutar y el usuario pueda ver la acción
 
   // Baja el brillo del LED de la ficha de nuevo al 20% después de ejecutar la acción
   // (si la ficha sigue presente)
@@ -525,6 +525,7 @@ void enviarBluetooth(ActionType action, int globalIndex) {
       setBrilloLeds(globalIndex, BRILLO_OFF); // Si la ficha fue quitada, apagar completamente
     }
   }
+
 
 }
 
@@ -569,6 +570,7 @@ String getAccionText(ActionType action) {
     case MOVER_DERECHA:   return "Derecha";
     case BLOQUE_CONTROL:  return "Bloque Control";
     case MELODIA_1:       return "Melodia";
+    case 7:               return "Reinicio";
     default:              return "Ninguna instruccion / Error";
   }
 }
