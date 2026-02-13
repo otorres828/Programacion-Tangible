@@ -25,13 +25,13 @@ float bloqueControl[3];           // El bloque de control (las últimas 4 posici
 
 // --- DEFINICIONES DE ACCIONES ---
 enum ActionType {
-  MOVER_ARRIBA = 1,     // Resistencia 190-220 Ohms                   - 220 ohms
-  MOVER_ABAJO = 2,      // Resistencia 500-810 Ohms                   - 680ohms 
-  MOVER_IZQUIERDA = 3,  // Resistencia 920-1.2k Ohms                  - 1k
-  MOVER_DERECHA = 4,    // Resistencia 1.7k-2.5k Ohms                 - 2k
-  BLOQUE_CONTROL = 5,   // Resistencia 4k-6 Ohms (no invertible)      - 4.7k
-  MELODIA_1 = 6,         // Resistencia 9k-11k Ohms (no invertible)   - 10k
-  // DO_HOMMING = 7,         
+  MOVER_ARRIBA = 1,     // Resistencia 900-1600 Ohms                   - 1K
+  MOVER_ABAJO = 2,      // Resistencia 170-300 Ohms                    - 220omh 
+  MOVER_IZQUIERDA = 3,  // Resistencia 500-810 Ohms                    - 680ohms
+  MOVER_DERECHA = 4,    // Resistencia 1.7k-2.5k Ohms                  - 2k
+  BLOQUE_CONTROL = 5,   // Resistencia 3k-6k Omhs                      - 4.7k
+  MELODIA_1 = 6,         // Resistencia 9k-11k Ohms                    - 10k
+  DO_HOMMING = 7,         
 };
 
 // --- UNIÓN PARA CONVERTIR FLOAT A BYTES Y VICEVERSA ---
@@ -317,8 +317,11 @@ void botonPulsaciones() {
       for (int i = 0; i < NUM_LEDS; i++) {
         setBrilloLeds(i, BRILLO_20_PORCIENTO);
       }
+      mySerial.print(7);
       delay(200);
       estadoSistemaActual = ESTADO_LEER;
+      robotX = 0;
+      robotY = 0;
     }
   }
 
@@ -387,23 +390,24 @@ void leerTodasColumnas() {
       setBrilloLeds(i, BRILLO_OFF);
     }
   }
+
   // Imprimir todas las instrucciones leidas
-  // Serial.println("-----------------------------------------------------------");
-  // Serial.println("Instrucciones leidas:");
-  // for (int i = 0; i < NUM_LEDS; i++) {
-  //   Serial.print("IDX ");
-  //   Serial.print(i + 1);
-  //   Serial.print(": ");
-  //   Serial.print(allResistances[i]);
-  //   Serial.print(" -> ");
-  //   if (allResistances[i] > 0) {
-  //     ActionType action = (ActionType)((int)allResistances[i]);+      
-  //     Serial.println(getAccionText(action));
-  //   } else {
-  //     Serial.println("Sin instruccion");
-  //   }
-  // }
-  // delay(1000);
+  Serial.println("-----------------------------------------------------------");
+  Serial.println("Instrucciones leidas:");
+  for (int i = 0; i < NUM_LEDS; i++) {
+    Serial.print("IDX ");
+    Serial.print(i + 1);
+    Serial.print(": ");
+    Serial.print(allResistances[i]);
+    Serial.print(" -> ");
+    if (allResistances[i] > 0) {
+      ActionType action = (ActionType)((int)allResistances[i]);+      
+      Serial.println(getAccionText(action));
+    } else {
+      Serial.println("Sin instruccion");
+    }
+  }
+  delay(1000);
 
 }
 
@@ -435,7 +439,7 @@ void ejecutarSiguienteInstruccion() {
 
       if (actualAction == BLOQUE_CONTROL) {
 
-        Serial.println("Instruccion "); Serial.print(actualInstruccionIndex + 1);
+        Serial.print("Instruccion "); Serial.print(actualInstruccionIndex + 1); Serial.println("- Bloque de Control detectado "); 
         ejecutarBlockControl(); // Esta función es bloqueante.
         
       } else {
@@ -466,6 +470,7 @@ void enviarBluetooth(ActionType action, int globalIndex) {
   Serial.println(getAccionText(action));
 
   if (!btConnected) {
+    Serial.println('No hay conexion a bluetooth');
     return;
   }
   int nextX = robotX;
@@ -508,13 +513,13 @@ void enviarBluetooth(ActionType action, int globalIndex) {
   }
 
   if(accionValida){
-
+    Serial.print("Accion valida"); // Salto de línea para mejor legibilidad en el monitor serial
     // Envía la acción por Bluetooth al CNC solo si el movimiento es valido
     mySerial.println(action);
     Serial.println(); // Salto de línea para mejor legibilidad en el monitor serial
+    delay(3000); //Esperar 3 segundos entre cada instrucción para que el CNC tenga tiempo de ejecutar y el usuario pueda ver la acción
 
   }
-  delay(3000); //Esperar 3 segundos entre cada instrucción para que el CNC tenga tiempo de ejecutar y el usuario pueda ver la acción
 
   // Baja el brillo del LED de la ficha de nuevo al 20% después de ejecutar la acción
   // (si la ficha sigue presente)

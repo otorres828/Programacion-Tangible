@@ -55,7 +55,7 @@ const int STEPS_PER_REVOLUTION = 2048;
 #define ENDSTOP_Y_PIN A1 // Pin para el final de carrera del Eje Y
 
 // --- Velocidad de los motores ---
-const int MOTOR_SPEED_RPM = 12; // RPMs (ajusta según tus necesidades)
+const int MOTOR_SPEED_RPM = 13; // RPMs (ajusta según tus necesidades)
 const int HOMING_SPEED_RPM = 5; // RPMs para el homing (más lento para mayor seguridad)
 
 // --- Definiciones de Acciones ---
@@ -76,7 +76,7 @@ const int steps[][4] = {
   {0, 0, 0, 1}  // Paso 4 (IN4 ON)
 };
 
-const int NUM_STEPS_SEQUENCE = 4.2;
+const int NUM_STEPS_SEQUENCE = 4;
 
 // --- CABECERAS DE FUNCIONES ---
 void setMotorPins(int in1, int in2, int in3, int in4, int stepIndex);
@@ -151,10 +151,10 @@ void loop() {
         if (btStableState == HIGH && !btConnected) {
           btConnected = true;
           Serial.println("Bluetooth: conectado (STATE pin). Ejecutando homing...");
-          if (!homingDone) {
-            doHoming(); // Homing al conectar por STATE pin
-            homingDone = true;
-          }
+          // if (!homingDone) {
+          //   // doHoming(); // Homing al conectar por STATE pin
+          //   homingDone = true;
+          // }
         } else if (btStableState == LOW && btConnected) {
           btConnected = false;
           homingDone = false; // permitir homing en la próxima conexión
@@ -237,16 +237,19 @@ void moveHbot(int stepsX, int stepsY, int motorSpeedRpm) {
   int directionM1 = (stepsM1 > 0) ? 1 : -1;
   int directionM2 = (stepsM2 > 0) ? 1 : -1;
 
-  for (int i = 0; i < maxSteps; i++) {
-    if (i < abs(stepsM1)) {
-      setMotorPins(IN1_M1, IN2_M1, IN3_M1, IN4_M1, currentStepM1);
-      currentStepM1 = (currentStepM1 + directionM1 + NUM_STEPS_SEQUENCE) % NUM_STEPS_SEQUENCE;
+  for(int j=0;j<2;j++){
+    for (int i = 0; i < maxSteps; i++) {
+      if (i < abs(stepsM1)) {
+        setMotorPins(IN1_M1, IN2_M1, IN3_M1, IN4_M1, currentStepM1);
+        currentStepM1 = (currentStepM1 + directionM1 + NUM_STEPS_SEQUENCE) % NUM_STEPS_SEQUENCE;
+      }
+      if (i < abs(stepsM2)) {
+        setMotorPins(IN1_M2, IN2_M2, IN3_M2, IN4_M2, currentStepM2);
+        currentStepM2 = (currentStepM2 + directionM2 + NUM_STEPS_SEQUENCE) % NUM_STEPS_SEQUENCE;
+      }
+      delayMicroseconds(delayBetweenSteps);
     }
-    if (i < abs(stepsM2)) {
-      setMotorPins(IN1_M2, IN2_M2, IN3_M2, IN4_M2, currentStepM2);
-      currentStepM2 = (currentStepM2 + directionM2 + NUM_STEPS_SEQUENCE) % NUM_STEPS_SEQUENCE;
-    }
-    delayMicroseconds(delayBetweenSteps);
+
   }
   
   // Apagar todas las bobinas
@@ -261,7 +264,7 @@ void doHoming() {
 
   // Mover el Eje X (ambos motores en la misma dirección)
   Serial.println("Homing Eje X (moviendo izquierda)...");
-  // playInstructionAudio(MOVER_IZQUIERDA);
+  playInstructionAudio(MOVER_IZQUIERDA);
   while (digitalRead(ENDSTOP_X_PIN) == HIGH) {
     moveHbot(-steps, 0, HOMING_SPEED_RPM);
   }
@@ -273,7 +276,7 @@ void doHoming() {
 
   // Mover el Eje Y (motores en direcciones opuestas)
   Serial.println("Homing Eje Y (moviendo abajo)...");
-  // playInstructionAudio(MOVER_ABAJO);
+  playInstructionAudio(MOVER_ABAJO);
   while (digitalRead(ENDSTOP_Y_PIN) == HIGH) {
     moveHbot(steps, -1, HOMING_SPEED_RPM);
   }
@@ -286,16 +289,19 @@ void doHoming() {
 }
 
 void playInstructionAudio(ActionType action) {
-  int trackNumber = 0;
-  switch (action) {
-    case MOVER_ARRIBA:    trackNumber = 1; break;
-    case MOVER_ABAJO:     trackNumber = 2; break;
-    case MOVER_IZQUIERDA: trackNumber = 3; break;
-    case MOVER_DERECHA:   trackNumber = 4; break;
-    case MELODIA_1:       trackNumber = 5; break;
-    default:              return;
-  }
-  mp3.play(trackNumber);
+
+  mp3.play(1);
+
+  // int trackNumber = 0;
+  // switch (action) {
+  //   case MOVER_ARRIBA:    trackNumber = 1; break;
+  //   case MOVER_ABAJO:     trackNumber = 2; break;
+  //   case MOVER_IZQUIERDA: trackNumber = 3; break;
+  //   case MOVER_DERECHA:   trackNumber = 4; break;
+  //   case MELODIA_1:       trackNumber = 5; break;
+  //   default:              return;
+  // }
+  // mp3.play(trackNumber);
   // Pequeño retardo para permitir comenzar la reproducción
   delay(100);
 }
@@ -304,7 +310,7 @@ void executeAction(ActionType action) {
   
   // playInstructionAudio(action);
 
-  const int steps = STEPS_PER_REVOLUTION / 2;
+  const int steps = (STEPS_PER_REVOLUTION / 2) + 240;
 
   switch (action) {
     case MOVER_ARRIBA:
@@ -334,5 +340,5 @@ void executeAction(ActionType action) {
       Serial.println("Instruccion desconocida.");
       break;
   }
-  delay(1000);
+  // delay(1000);
 }
