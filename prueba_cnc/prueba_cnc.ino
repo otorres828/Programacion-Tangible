@@ -62,6 +62,8 @@ const int HOMING_SPEED_RPM = 5; // RPMs para el homing (más lento para mayor se
 // --- Guarda el ultimo movimiento
 int calibration = 0;
 
+bool dfPlayerListo = false; // estado del MP3 Player (si se pudo inicializar correctamente)
+
 // --- Definiciones de Acciones ---
 enum ActionType {
   MOVER_ARRIBA = 1,
@@ -96,19 +98,32 @@ int manejoLedBT(int stableState);
 void setup() {
 
   // iniciar ambos SoftSerial
-  Serial.begin(9600); // Inicializar puerto Serial para Monitor Serial
+  Serial.begin(115200); // Inicializar puerto Serial para Monitor Serial
   bluetoothSerial.begin(9600);  //Inicializar Bluetooth Serial
-  myMp3Serial.begin(9600); // Inicializar SoftSerial para DFPlayer
+  myMp3Serial.begin(9600); // Inicializar  DFPlayer
+
+
   Serial.println("CNC Esclavo Iniciado.");
 
   // Configuracion DFPlayer Mini
-  if (!myDFPlayer.begin(myMp3Serial)) {
-    Serial.println("No se detecta DFPlayer.");
-  }else{
-    Serial.println("DFPlayer detectado y listo.");
-    myDFPlayer.volume(30); // Ajustar volumen (0-30)
-  }
+  myMp3Serial.listen(); 
+  delay(500);
   
+  // begin(serial, acknowledge, reset)
+  // Ponemos 'false' en acknowledge para que no se bloquee esperando respuesta
+  if (myDFPlayer.begin(myMp3Serial, false, false)) { 
+    Serial.println(F("✅ DFPlayer: Conectado (Modo rápido)"));
+    dfPlayerListo = true;
+    myDFPlayer.volume(30);
+    delay(100);
+    myDFPlayer.EQ(DFPLAYER_EQ_NORMAL);
+  } else {
+    Serial.println(F("❌ DFPlayer: Error de inicio."));
+  }
+
+  bluetoothSerial.listen();
+  Serial.println(F("✅ Bluetooth: Escuchando..."));
+
   // Inicializar pin STATE
   pinMode(BT_STATE_PIN, INPUT);
   int s = digitalRead(BT_STATE_PIN);
@@ -179,20 +194,35 @@ void loop() {
   }
   
   if (btConnected) {
-    if (bluetoothSerial.available()) {
-      int receivedAction = bluetoothSerial.parseInt();
-      while (bluetoothSerial.available()) {
-        bluetoothSerial.read();
+
+      // Lectura de Bluetooth 
+      if (bluetoothSerial.isListening() && bluetoothSerial.available() > 0) {
+          bluetoothSerial.setTimeout(50); 
+          String receivedAction = bluetoothSerial.readStringUntil(':'); 
+          receivedAction.trim();
+
+          Serial.print("Comando recibido: ");
+          Serial.println(receivedAction);
+
+          if (receivedAction.length() > 0 ) { // Si no es un número válido, procesar como comando
+              ActionType action = (ActionType)receivedAction.toInt();
+              executeAction(action);
+          }
       }
 
-      Serial.print("Recibido del Maestro: ");
-      Serial.println(receivedAction);
+      // int receivedAction = bluetoothSerial.parseInt();
+      // while (bluetoothSerial.available()) {
+      //   bluetoothSerial.read();
+      // }
 
-      if (receivedAction > 0) {
-        ActionType action = static_cast<ActionType>(receivedAction);
-        executeAction(action);
-      }
-    }
+      // Serial.print("Recibido del Maestro: ");
+      // Serial.println(receivedAction);
+
+      // if (receivedAction > 0) {
+      //   ActionType action = static_cast<ActionType>(receivedAction);
+      //   executeAction(action);
+      // }
+    
   } else {
     // Si no está conectado, vaciar cualquier dato pendiente y no ejecutar instrucciones
     while (bluetoothSerial.available()) {
@@ -307,7 +337,6 @@ void doHoming() {
 }
 
 void playInstructionAudio(ActionType action) {
-
   int trackNumber = 0;
   switch (action) {
     case MOVER_ARRIBA:    trackNumber = 1; break;
@@ -319,12 +348,26 @@ void playInstructionAudio(ActionType action) {
     case DO_HOMMING:      trackNumber = 7; break;
     default:              return;
   }
-  Serial.println("Reproduciendo audio para acción: " + String(action) );
-  if (!myDFPlayer.begin(myMp3Serial)) {
-    Serial.println("No se detecta DFPlayer.");
-    return;
+
+  if(dfPlayerListo) {
+    // Ajuste de impresión para evitar errores de concatenación
+    Serial.print("Reproduciendo audio para acción: ");
+    Serial.println((int)action);
+
+    myMp3Serial.listen();
+    delay(30);
+    myDFPlayer.play(trackNumber);
+
+    // Regresamos al Bluetooth
+    delay(30); 
+    bluetoothSerial.listen();
+    
+    // Limpieza de buffer express
+    while(bluetoothSerial.available() > 0) { bluetoothSerial.read(); }
+    
+  } else {
+    Serial.println("DFPlayer no listo.");
   }
-  myDFPlayer.play(trackNumber);
 }
 
 void executeAction(ActionType action) {
