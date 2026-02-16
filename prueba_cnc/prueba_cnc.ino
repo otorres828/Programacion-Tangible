@@ -104,7 +104,6 @@ void setup() {
   // Configuracion DFPlayer Mini
   if (!myDFPlayer.begin(myMp3Serial)) {
     Serial.println("No se detecta DFPlayer.");
-    Serial.println("Revisa conexiones y tarjeta SD.");
   }else{
     Serial.println("DFPlayer detectado y listo.");
     myDFPlayer.volume(30); // Ajustar volumen (0-30)
@@ -321,6 +320,10 @@ void playInstructionAudio(ActionType action) {
     default:              return;
   }
   Serial.println("Reproduciendo audio para acción: " + String(action) );
+  if (!myDFPlayer.begin(myMp3Serial)) {
+    Serial.println("No se detecta DFPlayer.");
+    return;
+  }
   myDFPlayer.play(trackNumber);
 }
 
