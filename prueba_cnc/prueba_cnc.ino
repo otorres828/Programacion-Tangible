@@ -11,6 +11,12 @@
 // --- Pines del módulo Bluetooth HC-05 ---
 SoftwareSerial bluetoothSerial(10, 11); // RX, TX para Bluetooth (conectado a TX, RX del CNC)
 
+// --- Pines para SoftSerial del DFPlayer Mini ---
+SoftwareSerial myMp3Serial(12, 13); // RX, TX para DFPlayer (conectado a TX, RX del DFPlayer)
+
+// Objeto del DFPlayer Mini (DFRobotDFPlayerMini)
+DFRobotDFPlayerMini myDFPlayer;
+
 // --- Opciones de detección de conexión Bluetooth ---
 #define BT_STATE_PIN A2
 const int ledVerde = A3;  // LED de Conectado
@@ -28,12 +34,6 @@ int btStableState = LOW;
 unsigned long btLastDebounceTime = 0;
 const unsigned long BT_STATE_DEBOUNCE_MS = 200; // tiempo de debounce para pin STATE (ms)
 
-// --- Pines para SoftSerial del DFPlayer Mini ---
-SoftwareSerial myMp3Serial(12, 13); // RX, TX para DFPlayer (conectado a TX, RX del DFPlayer)
-
-// Objeto del DFPlayer Mini (DFRobotDFPlayerMini)
-DFRobotDFPlayerMini mp3;
-bool mp3Ok = false; // indica si el DFPlayer fue inicializado correctamente
 
 // --- Definiciones para los motores 28BYJ-48 con ULN2003 ---
 // Motor 1 (izquierda)
@@ -55,8 +55,12 @@ const int STEPS_PER_REVOLUTION = 2048;
 #define ENDSTOP_Y_PIN A1 // Pin para el final de carrera del Eje Y
 
 // --- Velocidad de los motores ---
-const int MOTOR_SPEED_RPM = 13; // RPMs (ajusta según tus necesidades)
+const int MOTOR_SPEED_RPM = 12; // RPMs 
+const int MOTOR_SPEED_RPM_X = 8; // RPMs 
 const int HOMING_SPEED_RPM = 5; // RPMs para el homing (más lento para mayor seguridad)
+
+// --- Guarda el ultimo movimiento
+int calibration = 0;
 
 // --- Definiciones de Acciones ---
 enum ActionType {
@@ -64,6 +68,7 @@ enum ActionType {
   MOVER_ABAJO = 2,
   MOVER_IZQUIERDA = 3,
   MOVER_DERECHA = 4,
+  CONEXION_PERDIDA = 5,
   MELODIA_1 = 6,
   DO_HOMMING = 7,
 };
@@ -84,6 +89,7 @@ void moveHbot(int stepsX, int stepsY, int motorSpeedRpm);
 void doHoming();
 void playInstructionAudio(ActionType action);
 void executeAction(ActionType action);
+void calibrationX(ActionType currentAction);
 int manejoLedBT(int stableState);
 
 // --- SETUP Y LOOP ---
@@ -91,9 +97,19 @@ void setup() {
 
   // iniciar ambos SoftSerial
   Serial.begin(9600); // Inicializar puerto Serial para Monitor Serial
-  bluetoothSerial.begin(9600);
+  bluetoothSerial.begin(9600);  //Inicializar Bluetooth Serial
+  myMp3Serial.begin(9600); // Inicializar SoftSerial para DFPlayer
   Serial.println("CNC Esclavo Iniciado.");
 
+  // Configuracion DFPlayer Mini
+  if (!myDFPlayer.begin(myMp3Serial)) {
+    Serial.println("No se detecta DFPlayer.");
+    Serial.println("Revisa conexiones y tarjeta SD.");
+  }else{
+    Serial.println("DFPlayer detectado y listo.");
+    myDFPlayer.volume(30); // Ajustar volumen (0-30)
+  }
+  
   // Inicializar pin STATE
   pinMode(BT_STATE_PIN, INPUT);
   int s = digitalRead(BT_STATE_PIN);
@@ -125,7 +141,6 @@ void setup() {
   pinMode(ENDSTOP_X_PIN, INPUT_PULLUP);
   pinMode(ENDSTOP_Y_PIN, INPUT_PULLUP);
 
-
   Serial.println("FINAL DE LA CONFIGURACION INICIAL...");
 }
 
@@ -150,7 +165,7 @@ void loop() {
         manejoLedBT(btStableState);
         if (btStableState == HIGH && !btConnected) {
           btConnected = true;
-          Serial.println("Bluetooth: conectado (STATE pin). Ejecutando homing...");
+          Serial.println("Bluetooth: conectado (STATE pin). Ejecutando homing (COMENTADO)...");
           // if (!homingDone) {
           //   // doHoming(); // Homing al conectar por STATE pin
           //   homingDone = true;
@@ -159,6 +174,7 @@ void loop() {
           btConnected = false;
           homingDone = false; // permitir homing en la próxima conexión
           Serial.println("Bluetooth: desconectado (STATE pin).");
+          playInstructionAudio(CONEXION_PERDIDA);
         }
       }
   }
@@ -205,6 +221,7 @@ int manejoLedBT(int stableState){
   // Log only on transitions
   if (conectado && !prev) {
     Serial.println(">>> ESTADO: CONECTADO <<<");
+    playInstructionAudio(DO_HOMMING); // Reproducir audio de homing al conectar
   } else if (!conectado && prev) {
     Serial.println(">>> ESTADO: DESCONECTADO <<<");
   }
@@ -220,6 +237,7 @@ void setMotorPins(int in1, int in2, int in3, int in4, int stepIndex) {
 }
 
 void moveHbot(int stepsX, int stepsY, int motorSpeedRpm) {
+
   if (motorSpeedRpm <= 0) motorSpeedRpm = 1;
   unsigned long denom = (unsigned long)STEPS_PER_REVOLUTION * (unsigned long)motorSpeedRpm;
   unsigned long delayBetweenSteps = 60000000UL / denom; // microsegundos
@@ -258,6 +276,7 @@ void moveHbot(int stepsX, int stepsY, int motorSpeedRpm) {
 }
 
 void doHoming() {
+  playInstructionAudio(DO_HOMMING);
   Serial.println("Iniciando Homing (H-Bot)...");
   const int steps = 50;
   // const int steps = STEPS_PER_REVOLUTION / 2;
@@ -290,26 +309,25 @@ void doHoming() {
 
 void playInstructionAudio(ActionType action) {
 
-  mp3.play(1);
-
-  // int trackNumber = 0;
-  // switch (action) {
-  //   case MOVER_ARRIBA:    trackNumber = 1; break;
-  //   case MOVER_ABAJO:     trackNumber = 2; break;
-  //   case MOVER_IZQUIERDA: trackNumber = 3; break;
-  //   case MOVER_DERECHA:   trackNumber = 4; break;
-  //   case MELODIA_1:       trackNumber = 5; break;
-  //   default:              return;
-  // }
-  // mp3.play(trackNumber);
-  // Pequeño retardo para permitir comenzar la reproducción
-  delay(100);
+  int trackNumber = 0;
+  switch (action) {
+    case MOVER_ARRIBA:    trackNumber = 1; break;
+    case MOVER_ABAJO:     trackNumber = 2; break;
+    case MOVER_IZQUIERDA: trackNumber = 3; break;
+    case MOVER_DERECHA:   trackNumber = 4; break;
+    case CONEXION_PERDIDA:trackNumber = 5; break;
+    case MELODIA_1:       trackNumber = 6; break; 
+    case DO_HOMMING:      trackNumber = 7; break;
+    default:              return;
+  }
+  Serial.println("Reproduciendo audio para acción: " + String(action) );
+  myDFPlayer.play(trackNumber);
 }
 
 void executeAction(ActionType action) {
   
-  // playInstructionAudio(action);
-
+  playInstructionAudio(action);
+  calibrationX(action);
   const int steps = (STEPS_PER_REVOLUTION / 2) + 240;
 
   switch (action) {
@@ -324,11 +342,11 @@ void executeAction(ActionType action) {
       break;
     case MOVER_IZQUIERDA:
       Serial.println("Moviendo IZQUIERDA...");
-      moveHbot(0, steps, MOTOR_SPEED_RPM);
+      moveHbot(0, -steps, MOTOR_SPEED_RPM_X);
       break;
     case MOVER_DERECHA:
       Serial.println("Moviendo DERECHA...");
-      moveHbot(0, -steps, MOTOR_SPEED_RPM);
+      moveHbot(0, steps, MOTOR_SPEED_RPM_X);
       break;
     case MELODIA_1:
       Serial.println("Reproduciendo Melodia 1...");
@@ -340,5 +358,28 @@ void executeAction(ActionType action) {
       Serial.println("Instruccion desconocida.");
       break;
   }
-  // delay(1000);
+
+}
+
+void calibrationX(ActionType currentAction) {
+  
+    // Solo corregimos si el movimiento es horizontal
+    if (currentAction != MOVER_IZQUIERDA && currentAction != MOVER_DERECHA) {
+        return; // No corregimos si es ARRIBA o ABAJO
+    }
+
+    // Si la última acción es distinta a la actual, aplicamos la corrección
+    if (calibration != 0 && calibration != currentAction) {
+        const int CALIBRATION_STEPS = 200; // Cantidad de pasos para compensar backlash
+        Serial.println("Aplicando calibración por cambio de dirección...");
+
+        if (currentAction == MOVER_IZQUIERDA) {
+            moveHbot(0,CALIBRATION_STEPS,  MOTOR_SPEED_RPM_X); // mueve un poco a la izquierda
+        } else if (currentAction == MOVER_DERECHA) {
+            moveHbot(0,-CALIBRATION_STEPS,  MOTOR_SPEED_RPM_X); // mueve un poco a la derecha
+        }
+    }
+
+    // Guardamos la acción actual como la última ejecutada
+    calibration = currentAction;
 }
