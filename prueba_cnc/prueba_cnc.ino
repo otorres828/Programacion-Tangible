@@ -155,7 +155,7 @@ void setup() {
   pinMode(ENDSTOP_X_PIN, INPUT_PULLUP);
   pinMode(ENDSTOP_Y_PIN, INPUT_PULLUP);
 
-  Serial.println("FINAL DE LA CONFIGURACION INICIAL...");
+  Serial.println("✅ FINAL DE LA CONFIGURACION INICIAL...");
 }
 
 void loop() {
@@ -173,17 +173,17 @@ void loop() {
 
       // El estado se considera estable
       if (raw != btStableState) {
-        Serial.println("imprimiendo loop...");
+        Serial.println("Bluetooth Estable...");
         btStableState = raw;
         // Actualizar LEDs al cambiar el estado estable
         manejoLedBT(btStableState);
         if (btStableState == HIGH && !btConnected) {
           btConnected = true;
-          Serial.println("Bluetooth: conectado (STATE pin). Ejecutando homing (COMENTADO)...");
-          // if (!homingDone) {
-          //   // doHoming(); // Homing al conectar por STATE pin
-          //   homingDone = true;
-          // }
+          Serial.println("Bluetooth: conectado (STATE pin). Ejecutando homing...");
+          if (!homingDone) {
+            doHoming(); // Homing al conectar por STATE pin
+            homingDone = true;
+          }
         } else if (btStableState == LOW && btConnected) {
           btConnected = false;
           homingDone = false; // permitir homing en la próxima conexión
@@ -250,7 +250,6 @@ int manejoLedBT(int stableState){
   // Log only on transitions
   if (conectado && !prev) {
     Serial.println(">>> ESTADO: CONECTADO <<<");
-    playInstructionAudio(DO_HOMMING); // Reproducir audio de homing al conectar
   } else if (!conectado && prev) {
     Serial.println(">>> ESTADO: DESCONECTADO <<<");
   }
@@ -310,27 +309,27 @@ void doHoming() {
   const int steps = 50;
   // const int steps = STEPS_PER_REVOLUTION / 2;
 
-  // Mover el Eje X (ambos motores en la misma dirección)
-  Serial.println("Homing Eje X (moviendo izquierda)...");
-  playInstructionAudio(MOVER_IZQUIERDA);
-  while (digitalRead(ENDSTOP_X_PIN) == HIGH) {
-    moveHbot(-steps, 0, HOMING_SPEED_RPM);
-  }
-
-  delay(1000);
-  Serial.println("Final de carrera X alcanzado.");
-  moveHbot(steps - 20, 0, HOMING_SPEED_RPM);
-  delay(1500);
-
-  // Mover el Eje Y (motores en direcciones opuestas)
-  Serial.println("Homing Eje Y (moviendo abajo)...");
+  // Mover el Eje y (ambos motores en la misma dirección)
+  Serial.println("Homing Eje Y (moviendo ABAJO)...");
   playInstructionAudio(MOVER_ABAJO);
   while (digitalRead(ENDSTOP_Y_PIN) == HIGH) {
-    moveHbot(steps, -1, HOMING_SPEED_RPM);
+    moveHbot(steps, 0, HOMING_SPEED_RPM);
   }
 
   delay(1000);
   Serial.println("Final de carrera Y alcanzado.");
+  moveHbot(steps - 20, 0, HOMING_SPEED_RPM);
+  delay(1500);
+
+  // Mover el Eje x (motores en direcciones opuestas)
+  Serial.println("Homing Eje X (moviendo izquierda)...");
+  playInstructionAudio(MOVER_IZQUIERDA);
+  while (digitalRead(ENDSTOP_Y_PIN) == HIGH) {
+    moveHbot(0, -steps, HOMING_SPEED_RPM);
+  }
+
+  delay(1000);
+  Serial.println("Final de carrera X alcanzado.");
   moveHbot(0, steps - 20, HOMING_SPEED_RPM);
 
   Serial.println("Homing Completo.");
@@ -357,6 +356,9 @@ void playInstructionAudio(ActionType action) {
     myMp3Serial.listen();
     delay(30);
     myDFPlayer.play(trackNumber);
+    if(trackNumber == DO_HOMMING){
+      delay(5500);
+    }
 
     // Regresamos al Bluetooth
     delay(30); 
@@ -384,7 +386,6 @@ void executeAction(ActionType action) {
     case MOVER_ABAJO:
       Serial.println("Moviendo ABAJO...");
       moveHbot(steps, 0, MOTOR_SPEED_RPM);
-      
       break;
     case MOVER_IZQUIERDA:
       Serial.println("Moviendo IZQUIERDA...");
@@ -420,9 +421,9 @@ void calibrationX(ActionType currentAction) {
         Serial.println("Aplicando calibración por cambio de dirección...");
 
         if (currentAction == MOVER_IZQUIERDA) {
-            moveHbot(0,CALIBRATION_STEPS,  MOTOR_SPEED_RPM_X); // mueve un poco a la izquierda
+            moveHbot(0,-CALIBRATION_STEPS,  MOTOR_SPEED_RPM_X); // mueve un poco a la izquierda
         } else if (currentAction == MOVER_DERECHA) {
-            moveHbot(0,-CALIBRATION_STEPS,  MOTOR_SPEED_RPM_X); // mueve un poco a la derecha
+            moveHbot(0,CALIBRATION_STEPS,  MOTOR_SPEED_RPM_X); // mueve un poco a la derecha
         }
     }
 
